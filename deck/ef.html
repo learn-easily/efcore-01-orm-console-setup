@@ -1,0 +1,1333 @@
+<!-- =========================================================
+     EF Core კონსოლში — C# + MS SQL → ORM → EF Core → 4 ნაბიჯი → პრაქტიკა
+     ფერები: C#/კოდი = იისფერი · ბაზა = ქარვისფერი · ORM/EF Core = ზღვისფერი (teal)
+             მოთხოვნა = ლურჯი · პასუხი/წარმატება = მწვანე · შეცდომა = წითელი
+     ========================================================= -->
+<style>
+.stepper{position:absolute;right:90px;top:calc(72px + (var(--h,900px) - 900px) / 2);display:flex;gap:8px;z-index:3}
+.stepper span{font:600 14px var(--mono);padding:6px 13px;border-radius:99px;border:1px solid var(--line2);color:var(--muted);background:#fff}
+.stepper span.done{color:var(--mvc);border-color:color-mix(in srgb,var(--mvc) 45%,#fff)}
+.stepper span.on{background:var(--core);border-color:var(--core);color:#fff;box-shadow:0 6px 16px -8px var(--core)}
+i.codestep{display:none}
+.mono{font-family:var(--mono)}
+.late{opacity:0}
+.shown .late,.shown.late{animation:inFade .6s var(--ease) var(--ld,.9s) forwards}
+.term .pm::before{content:"PM> ";color:var(--core)}
+.term .ok{color:#4ade80}
+.term .warn{color:#fbbf24}
+.term .body{font-size:18px;line-height:1.65}
+.tree{font:19px/1.9 var(--mono);color:var(--ink2)}
+.tree .n{display:block;white-space:nowrap}
+.tree .n i{font-style:normal;margin-right:8px}
+.tree .lvl1{padding-left:30px}.tree .lvl2{padding-left:60px}.tree .lvl3{padding-left:90px}.tree .lvl4{padding-left:120px}
+.tree .hi{color:var(--ink);font-weight:700}
+.nuget{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.nuget .logo{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font:800 16px var(--mono);color:#fff;background:linear-gradient(135deg,#6d28d9,#0d9488);flex:none}
+.nuget .nm{font:700 19px var(--mono);color:var(--ink)}
+.nuget .ds{font-size:16px;color:var(--muted)}
+.nuget .btn{margin-left:auto;font:700 15px var(--mono);padding:8px 16px;border-radius:10px;background:var(--core);color:#fff}
+.seg{padding:4px 2px;border-bottom:5px solid var(--a);color:var(--ink);transition:background .4s}
+.cs{font:700 30px/1.5 var(--mono);text-align:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 20px;box-shadow:var(--shadow);letter-spacing:-.3px}
+.flowrow{display:flex;align-items:center;gap:18px}
+.fbox{flex:1;border-radius:16px;padding:18px 20px;border:2px solid var(--a);background:color-mix(in srgb,var(--a) 8%,#fff);text-align:center}
+.fbox .e{font-size:38px;line-height:1.2}
+.fbox .l{font-size:21px;font-weight:700;color:var(--ink)}
+.fbox .s{font:15px var(--mono);color:var(--muted)}
+.farrow{font:700 17px var(--mono);color:var(--a);text-align:center;min-width:170px}
+.farrow .ar{display:block;font-size:40px;line-height:1}
+.big-n{font:800 120px/1 var(--mono)}
+.check li{list-style:none;position:relative;padding-left:44px;margin:12px 0;font-size:23px}
+.check li::before{content:"";position:absolute;left:0;top:.2em;width:26px;height:26px;border-radius:8px;border:2px solid var(--line2);background:#fff}
+.check li.shown::before{content:"✓";color:#fff;background:var(--mvc);border-color:var(--mvc);font:800 18px/26px var(--font);text-align:center}
+.mock{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.mock .mh{background:var(--bg2);padding:10px 16px;font:600 14px var(--mono);color:var(--muted);border-bottom:1px solid var(--line)}
+.mock .mb{padding:18px 20px}
+.field{font:600 18px var(--mono);border:2px solid var(--line2);border-radius:10px;padding:10px 14px;color:var(--ink);background:#fff}
+.field.hot{border-color:var(--asp);box-shadow:0 0 0 4px rgba(217,119,6,.15)}
+.phase{text-align:center}
+.phase .em{font-size:72px;line-height:1.1}
+.phase .tt{font:700 15px var(--mono);color:var(--a)}
+</style>
+
+<!-- 1. TITLE -->
+<section class="slide" data-section="შესავალი">
+  <div class="vcenter" style="max-width:860px">
+    <div class="kicker in" style="color:var(--core)">Entity Framework Core · Console App</div>
+    <h1 class="in" style="--d:.15s">C#-ი ხვდება<br><span class="grad">მონაცემთა ბაზას</span></h1>
+    <p class="lead in mt" style="--d:.35s">რა არის ORM, რა არის EF Core და როგორ დავაკავშიროთ ჩვენი C# კოდი SQL Server-თან — <b>4 ნაბიჯში</b></p>
+  </div>
+  <div class="abs" style="right:90px;top:250px">
+    <svg viewBox="0 0 600 380" width="600" height="380">
+      <g class="in" style="--d:.45s"><rect x="10" y="110" width="170" height="160" rx="22" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/><text x="95" y="190" text-anchor="middle" class="tn b" font-size="56">C#</text><text x="95" y="236" text-anchor="middle" class="tm" font-size="19">კოდი</text></g>
+      <g class="in" style="--d:.7s"><path d="M425 130 v120 a85 22 0 0 0 170 0 v-120" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="510" cy="130" rx="85" ry="22" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><text x="510" y="208" text-anchor="middle" class="to b" font-size="40">SQL</text><text x="510" y="246" text-anchor="middle" class="tm" font-size="19">ბაზა</text></g>
+      <path id="br1" class="autodraw" style="--d:1s" d="M180 190 C 260 70, 345 70, 425 190" stroke="#0d9488" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <g class="in fade" style="--d:1.9s">
+        <rect x="236" y="56" width="130" height="40" rx="20" fill="#0d9488"/><text x="301" y="83" text-anchor="middle" font-size="19" class="b" style="fill:#fff">EF Core</text>
+        <circle r="9" fill="#6d28d9"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#br1"/></animateMotion></circle>
+        <circle r="9" fill="#d97706"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#br1"/></animateMotion></circle>
+      </g>
+      <g class="in fade" style="--d:2.2s"><text x="300" y="330" text-anchor="middle" class="tm" font-size="18">ობიექტები ⇄ ცხრილები</text></g>
+    </svg>
+  </div>
+  <aside class="notes">
+⏱ 0:00 · 2 წთ
+~ სლაიდი ღიაა, სანამ სტუდენტები სხდებიან.
+გამარჯობა! დღეს ძალიან მნიშვნელოვანი დღეა — დღეს ორ რამეს, რაც უკვე ვიცით, ერთმანეთს ვაკავშირებთ.
+ვისწავლეთ C#. ვისწავლეთ MS SQL და ბაზები. მაგრამ ჯერჯერობით ეს ორი სამყარო ცალ-ცალკე ცხოვრობს.
+მარჯვნივ ხედავთ დღევანდელ სურათს: მარცხნივ ჩვენი C# კოდი, მარჯვნივ ბაზა, შუაში — ხიდი. ეს ხიდი არის EF Core.
+! ლექციის ბოლოს თქვენი C# პროგრამა თვითონ შექმნის ბაზას, ცხრილს და მასში ჩაწერს მონაცემს.
+  </aside>
+</section>
+
+<!-- 2. ROADMAP -->
+<section class="slide">
+  <div class="kicker">დღის გზა</div>
+  <h2>სადამდე მოვედით და სად მივდივართ</h2>
+  <svg viewBox="0 0 1420 470" width="1420" height="470">
+    <path class="autodraw" style="--d:.2s" d="M90 230 C250 80 360 380 540 230 S860 80 1000 230 S1250 380 1340 230" stroke="#cfc6b6" stroke-width="4" fill="none" stroke-dasharray="10 10"/>
+    <g class="in zoom" style="--d:.3s;transform-origin:90px 230px"><circle cx="90" cy="230" r="46" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/><text x="90" y="246" text-anchor="middle" class="tn b" font-size="34">C#</text><text x="90" y="318" text-anchor="middle" class="tw b" font-size="21">C#</text><text x="90" y="344" text-anchor="middle" class="tg b" font-size="16">✓ ვიცით</text><circle cx="124" cy="196" r="16" fill="#16a34a"/><text x="124" y="203" text-anchor="middle" font-size="18" style="fill:#fff" class="b">✓</text></g>
+    <g class="in zoom" style="--d:.55s;transform-origin:300px 190px"><circle cx="300" cy="190" r="46" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><text x="300" y="206" text-anchor="middle" font-size="38">🗄️</text><text x="300" y="112" text-anchor="middle" class="tw b" font-size="21">MS SQL</text><text x="300" y="88" text-anchor="middle" class="tg b" font-size="16">✓ ვიცით</text><circle cx="334" cy="156" r="16" fill="#16a34a"/><text x="334" y="163" text-anchor="middle" font-size="18" style="fill:#fff" class="b">✓</text></g>
+    <g class="step zoom" style="transform-origin:540px 230px"><circle cx="540" cy="230" r="46" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/><text x="540" y="246" text-anchor="middle" font-size="38">🌉</text><text x="540" y="318" text-anchor="middle" class="tw b" font-size="21">ORM</text><text x="540" y="344" text-anchor="middle" class="tm" font-size="16">რა იდეაა</text></g>
+    <g class="step zoom" style="transform-origin:780px 150px"><circle cx="780" cy="150" r="46" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/><text x="780" y="166" text-anchor="middle" font-size="38">🧩</text><text x="780" y="72" text-anchor="middle" class="tw b" font-size="21">EF Core</text><text x="780" y="48" text-anchor="middle" class="tm" font-size="16">C#-ის ORM</text></g>
+    <g class="step zoom" style="transform-origin:1000px 230px"><circle cx="1000" cy="230" r="46" fill="#eaf2fe" stroke="#2563eb" stroke-width="3"/><text x="1000" y="246" text-anchor="middle" font-size="38">🔧</text><text x="1000" y="318" text-anchor="middle" class="tw b" font-size="21">4 ნაბიჯი</text><text x="1000" y="344" text-anchor="middle" class="tm" font-size="16">პროექტის მომზადება</text></g>
+    <g class="step zoom" style="transform-origin:1340px 230px"><circle cx="1340" cy="230" r="52" fill="#eaf8ef" stroke="#16a34a" stroke-width="4" class="pulse"/><text x="1340" y="248" text-anchor="middle" font-size="42">⌨️</text><text x="1340" y="320" text-anchor="middle" class="tg b" font-size="21">პრაქტიკა</text><text x="1340" y="346" text-anchor="middle" class="tm" font-size="16">მე → ერთად → თქვენ</text></g>
+  </svg>
+  <aside class="notes">
+⏱ 0:02 · 2 წთ
+? ვინ მეტყვის, რა ვისწავლეთ აქამდე? (C# და SQL — ორივეს მწვანე ნიშანი აქვს.)
+ორი გაჩერება უკვე გავიარეთ. დღეს დანარჩენ ოთხს გავივლით.
+→ ORM
+ჯერ — ORM: იდეა, რომელიც ამ ორ სამყაროს აკავშირებს.
+→ EF Core
+შემდეგ — EF Core: ეს იდეა C#-ში.
+→ 4 ნაბიჯი
+შემდეგ — 4 ნაბიჯი, რომლითაც ნებისმიერ პროექტს ბაზასთან ვაკავშირებთ.
+→ პრაქტიკა
+და ბოლოს პრაქტიკა სამ რაუნდად: ჯერ მე ვაკეთებ, მერე ერთად ვაკეთებთ, მერე — თქვენ დამოუკიდებლად.
+  </aside>
+</section>
+
+<!-- ============ PART 1: PROBLEM ============ -->
+<section class="slide divider" data-section="1 · პრობლემა">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 1</div>
+    <h1 class="in" style="--d:.1s">ორი სამყარო,<br><span class="grad">ორი ენა</span></h1>
+    <p class="lead mt in" style="--d:.3s">რატომ არ ელაპარაკება C# ბაზას „თავისით“</p>
+  </div>
+  <div class="big-num">01</div>
+  <aside class="notes">
+⏱ 0:04
+დავიწყოთ პრობლემით. თუ პრობლემას არ გავიგებთ, გამოსავალიც არ გვეყვარება.
+  </aside>
+</section>
+
+<!-- 3. TWO WORLDS -->
+<section class="slide" data-section="1 · პრობლემა">
+  <div class="kicker">ერთი და იგივე პროდუქტი</div>
+  <h2>C#-ში და SQL-ში ასე გამოიყურება</h2>
+  <div style="display:grid;grid-template-columns:1fr 150px 1fr;gap:20px;align-items:center">
+    <div class="card accent step left" style="--a:var(--net);grid-column:1;grid-row:1">
+      <h3><span class="ico">🟣</span>C# სამყარო</h3>
+      <code-block lang="csharp" cls="sm" title="Product.cs">
+class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+}
+
+var p = new Product { Name = "მაუსი", Price = 45 };
+      </code-block>
+      <p class="small mt" style="margin-top:14px">ფიქრობს <b>კლასებით და ობიექტებით</b></p>
+    </div>
+    <div class="card accent step right" style="--a:var(--asp);grid-column:3;grid-row:1">
+      <h3><span class="ico">🗄️</span>SQL სამყარო</h3>
+      <code-block lang="sql" cls="sm" title="SQL Server">
+CREATE TABLE Products (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    Name NVARCHAR(100) NOT NULL,
+    Price DECIMAL(10,2) NOT NULL
+);
+
+INSERT INTO Products (Name, Price)
+VALUES (N'მაუსი', 45);
+      </code-block>
+      <p class="small mt" style="margin-top:14px">ფიქრობს <b>ცხრილებით და ჩანაწერებით</b></p>
+    </div>
+    <svg viewBox="0 0 150 200" width="150" height="200" class="step zoom" style="grid-column:2;grid-row:1">
+      <path d="M10 100 H140" stroke="#cfc6b6" stroke-width="4" stroke-dasharray="8 10" class="flow"/>
+      <circle cx="75" cy="100" r="44" fill="#fff" stroke="#dc2626" stroke-width="3" class="pulse"/>
+      <text x="75" y="118" text-anchor="middle" class="tr b" font-size="52">?</text>
+    </svg>
+  </div>
+  <div class="callout step mt" style="--a:var(--red)">ორივე ერთსა და იმავეს აღწერს. მაგრამ <b>სხვადასხვა ენაზე ლაპარაკობენ</b> — როგორ ვათარგმნოთ ერთიდან მეორეში?</div>
+  <aside class="notes">
+⏱ 0:04 · 3 წთ
+ვთქვათ, ვაკეთებთ ონლაინ მაღაზიას და გვაქვს პროდუქტი.
+→ C# სამყარო
+C#-ში პროდუქტი არის კლასი. კონკრეტული მაუსი — ამ კლასის ობიექტი. ეს ყველაფერი მეხსიერებაში ცხოვრობს: პროგრამა დაიხურა — მონაცემი გაქრა.
+→ SQL სამყარო
+SQL-ში იგივე პროდუქტი არის ცხრილი, კონკრეტული მაუსი — ერთი ჩანაწერი, ერთი ხაზი. აქ მონაცემი რჩება სამუდამოდ.
+? ორივე ერთი და იგივეა? (კი — Id, Name, Price.) მაგრამ ერთნაირადაა დაწერილი? (არა.)
+→ კითხვის ნიშანი
+აი, ჩვენი პრობლემა: ეს ორი სამყარო ერთმანეთს არ იცნობს.
+→ დასკვნა
+! C# ობიექტებით ფიქრობს, ბაზა — ცხრილებით. ვიღაცამ უნდა ითარგმნოს.
+  </aside>
+</section>
+
+<!-- 4. WITHOUT ORM -->
+<section class="slide" data-section="1 · პრობლემა">
+  <div class="kicker">ვცადოთ ხელით</div>
+  <h2>ORM-ის გარეშე: <span class="c-red">ყველაფერი ხელით</span></h2>
+  <div class="grid2" style="grid-template-columns:1.35fr 1fr;align-items:start">
+    <code-block id="ado" lang="csharp" cls="" title="ADO.NET — ბაზიდან პროდუქტების წაკითხვა">
+using var conn = new SqlConnection(connectionString);
+conn.Open();
+
+var cmd = new SqlCommand("SELECT Id, Name, Price FROM Products", conn);
+using var reader = cmd.ExecuteReader();
+
+var products = new List<Product>();
+while (reader.Read())
+{
+    products.Add(new Product
+    {
+        Id    = reader.GetInt32(0),
+        Name  = reader.GetString(1),
+        Price = reader.GetDecimal(2)
+    });
+}
+    </code-block>
+    <div class="col" style="gap:16px">
+      <i class="codestep" data-for="ado" data-lines="1-2"></i>
+      <div class="callout step" data-with style="--a:var(--muted)"><b>კავშირი</b> — ხელით ვხსნით და ვხურავთ</div>
+      <i class="codestep" data-for="ado" data-lines="4"></i>
+      <div class="problem step" data-with>SQL — უბრალო <b>ტექსტია</b>. შეცდომას კომპილატორი ვერ დაინახავს</div>
+      <i class="codestep" data-for="ado" data-lines="8-16"></i>
+      <div class="problem step" data-with>ყოველი სვეტი ხელით, <b>ნომრით</b> გადაგვაქვს property-ში</div>
+      <i class="codestep" data-for="ado" data-lines="all"></i>
+      <div class="callout step" data-with style="--a:var(--red)">16 ხაზი — და ეს <b>მხოლოდ ერთი SELECT-ია</b>. INSERT, UPDATE, DELETE — ყველა ცხრილზე ისევ ასე 😩</div>
+    </div>
+  </div>
+  <aside class="notes">
+⏱ 0:07 · 4 წთ
+ORM-მდე როგორ აკეთებდნენ ამას? აი, ასე — ეს არის ADO.NET, .NET-ის „დაბალი დონის“ გზა ბაზასთან სალაპარაკოდ.
+~ კოდს არ ვასწავლით — უბრალოდ ვაჩვენებთ, რამდენი შრომაა.
+→ ხაზები 1–2
+ჯერ ხელით ვხსნით კავშირს ბაზასთან.
+→ ხაზი 4
+SQL ბრძანებას ვწერთ ბრჭყალებში. ეს C#-ისთვის უბრალო ტექსტია.
+? Products-ის ნაცვლად თუ შემთხვევით დავწერ Prodcts, ვინ შემატყობინებს? (კომპილატორი — არა. მხოლოდ გაშვებისას გაფრინდება.)
+→ ხაზები 8–16
+შემდეგ ყოველი ჩანაწერიდან ყოველი სვეტი ხელით, ნომრით — 0, 1, 2 — გადაგვაქვს ობიექტში. სვეტების რიგი შეიცვალა — ყველაფერი დაინგრა.
+→ ყველაფერი
+! 16 ხაზი მხოლოდ ერთი ცხრილის წასაკითხად. წარმოიდგინეთ 30 ცხრილი და ოთხივე ოპერაცია.
+  </aside>
+</section>
+
+<!-- 5. WITH EF CORE (TEASER) -->
+<section class="slide" data-section="1 · პრობლემა">
+  <div class="kicker">იგივე ამოცანა</div>
+  <h2>და ახლა — <span class="c-core">ORM-ით</span></h2>
+  <div class="row" style="align-items:center;gap:60px;margin-top:40px">
+    <div class="col" style="align-items:center;min-width:300px">
+      <div class="row" style="align-items:center;gap:30px">
+        <span class="big-n c-red in" style="--d:.3s;text-decoration:line-through;text-decoration-thickness:8px">16</span>
+        <span class="in" style="--d:.6s;font-size:60px;color:var(--muted)">→</span>
+        <span class="big-n c-mvc in zoom" style="--d:.9s">1</span>
+      </div>
+      <p class="tiny in" style="--d:1s">ხაზი</p>
+    </div>
+    <div class="f1 cs in" style="--d:.5s"><span style="color:#7c3aed">var</span> products = db.<span class="c-core">Products</span>.<span style="color:#1d4ed8">ToList</span>();</div>
+  </div>
+  <div class="grid3 mt2">
+    <div class="solve step">SQL-ს <b>ORM წერს</b> ჩვენ მაგივრად</div>
+    <div class="solve step">სვეტები property-ებში <b>თვითონ ჯდება</b></div>
+    <div class="solve step">შეცდომას <b>კომპილატორი</b> გვაჩვენებს</div>
+  </div>
+  <aside class="notes">
+⏱ 0:11 · 2 წთ
+ახლა იგივე ამოცანა — ORM-ით.
+! 16 ხაზი ერთ ხაზად იქცა: „მომეცი ყველა პროდუქტი სიის სახით“.
+→ SQL-ს ORM წერს
+SQL-ს აღარ ვწერთ — ORM თვითონ აგენერირებს.
+→ სვეტები თვითონ ჯდება
+reader.GetInt32(0) აღარ გვჭირდება — ORM-მა იცის, რომელი სვეტი რომელ property-ში ჩასვას.
+→ კომპილატორი
+Products-ს თუ შეგეშლებათ, Visual Studio წითლად გაგიხაზავთ — სანამ გაუშვებთ.
+? გინდათ გაიგოთ, როგორ? ამისთვის ჯერ უნდა გავიგოთ, რა არის ORM.
+  </aside>
+</section>
+
+<!-- ============ PART 2: ORM ============ -->
+<section class="slide divider" data-section="2 · ORM">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 2</div>
+    <h1 class="in" style="--d:.1s">რა არის <span class="grad">ORM?</span></h1>
+    <p class="lead mt in" style="--d:.3s">იდეა, რომელსაც თითქმის ყველა პროგრამირების ენაში შეხვდებით</p>
+  </div>
+  <div class="big-num">02</div>
+  <aside class="notes">
+⏱ 0:13
+ORM — ეს ზოგადი ცნებაა, არა მხოლოდ C#-ის. ერთხელ თუ გაიგებთ, Java-შიც, Python-შიც, JavaScript-შიც ამოიცნობთ.
+  </aside>
+</section>
+
+<!-- 6. ORM LETTERS -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">სამი ასო</div>
+  <h2>O · R · M</h2>
+  <div class="grid3">
+    <div class="card accent step zoom" style="--a:var(--net);text-align:center">
+      <div class="verb" style="--a:var(--net)">O</div>
+      <h3 style="justify-content:center">Object</h3>
+      <p>ობიექტი — C#-ის <b>კლასები და ობიექტები</b></p>
+    </div>
+    <div class="card accent step zoom" style="--a:var(--asp);text-align:center">
+      <div class="verb" style="--a:var(--asp)">R</div>
+      <h3 style="justify-content:center">Relational</h3>
+      <p>რელაციური ბაზა — <b>ცხრილები, სვეტები</b> და მათი კავშირები</p>
+    </div>
+    <div class="card accent step zoom" style="--a:var(--core);text-align:center">
+      <div class="verb" style="--a:var(--core)">M</div>
+      <h3 style="justify-content:center">Mapping</h3>
+      <p>დაკავშირება — <b>რა რას შეესაბამება</b> ერთ და მეორე მხარეს</p>
+    </div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--core);font-size:26px;text-align:center;border-left:0;border-radius:16px;padding:22px"><b>ORM</b> — თარჯიმანი C#-სა და ბაზას შორის. ჩვენ ვწერთ <b>C#-ს</b>, ის ბაზას ელაპარაკება <b>SQL-ით</b>.</div>
+  <aside class="notes">
+⏱ 0:13 · 3 წთ
+ORM სამი სიტყვის შემოკლებაა. თითოეულს ცალკე ავხსნი.
+→ O — Object
+Object — ობიექტი. ჩვენი C#-ის მხარე: კლასები და ობიექტები.
+→ R — Relational
+Relational — რელაციური ბაზა. MS SQL სწორედ ასეთია: ცხრილები, სვეტები, Foreign Key-ებით დაკავშირებული.
+→ M — Mapping
+Mapping — დაკავშირება, „რუკის შედგენა“: ეს კლასი — ამ ცხრილს, ეს property — ამ სვეტს.
+→ განმარტება
+! ORM არის თარჯიმანი. ჩვენ ვწერთ C#-ს, ის თვითონ წერს SQL-ს და შედეგს ისევ C#-ის ობიექტებად გვიბრუნებს.
+  </aside>
+</section>
+
+<!-- 7. MAPPING -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">Mapping</div>
+  <h2>რა რას შეესაბამება</h2>
+  <svg viewBox="0 0 1420 560" width="1420" height="560">
+    <text x="250" y="30" text-anchor="middle" class="tn b" font-size="22">C# · კოდი</text>
+    <text x="710" y="30" text-anchor="middle" class="tp b" font-size="22">ORM</text>
+    <text x="1170" y="30" text-anchor="middle" class="to b" font-size="22">SQL · ბაზა</text>
+
+    <g class="step fade draw">
+      <rect x="60" y="60" width="380" height="110" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="90" y="98" class="tm" font-size="17">კლასი</text><text x="90" y="140" class="tw mono b" font-size="27">class Product</text>
+      <path d="M450 115 H965" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <g class="late"><polygon points="965,103 985,115 965,127" fill="#0d9488"/>
+        <rect x="980" y="60" width="380" height="110" rx="18" fill="#fef5e4" stroke="#d97706" stroke-width="2.5"/>
+        <text x="1010" y="98" class="tm" font-size="17">ცხრილი</text><text x="1010" y="140" class="tw mono b" font-size="27">TABLE Products</text></g>
+    </g>
+    <g class="step fade draw">
+      <rect x="60" y="230" width="380" height="110" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="90" y="268" class="tm" font-size="17">property</text><text x="90" y="310" class="tw mono b" font-size="25">decimal Price</text>
+      <path d="M450 285 H965" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <g class="late"><polygon points="965,273 985,285 965,297" fill="#0d9488"/>
+        <rect x="980" y="230" width="380" height="110" rx="18" fill="#fef5e4" stroke="#d97706" stroke-width="2.5"/>
+        <text x="1010" y="268" class="tm" font-size="17">სვეტი</text><text x="1010" y="310" class="tw mono b" font-size="25">Price DECIMAL</text></g>
+    </g>
+    <g class="step fade draw">
+      <rect x="60" y="400" width="380" height="110" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="90" y="438" class="tm" font-size="17">ობიექტი</text><text x="90" y="480" class="tw mono b" font-size="22">new Product { … }</text>
+      <path d="M450 455 H965" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <g class="late"><polygon points="965,443 985,455 965,467" fill="#0d9488"/>
+        <rect x="980" y="400" width="380" height="110" rx="18" fill="#fef5e4" stroke="#d97706" stroke-width="2.5"/>
+        <text x="1010" y="438" class="tm" font-size="17">ჩანაწერი (row)</text><text x="1010" y="480" class="tw mono b" font-size="22">1 │ მაუსი │ 45</text></g>
+    </g>
+    <g class="in zoom" style="--d:.3s;transform-origin:710px 285px"><circle cx="710" cy="285" r="58" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/><text x="710" y="303" text-anchor="middle" font-size="48" class="spin">⚙️</text></g>
+  </svg>
+  <aside class="notes">
+⏱ 0:16 · 3 წთ
+Mapping ნიშნავს, რომ ORM-მა იცის სამი წესი.
+→ კლასი = ცხრილი
+პირველი: ერთი კლასი — ერთი ცხრილი. class Product → ცხრილი Products.
+→ property = სვეტი
+მეორე: კლასის ყოველი property — ცხრილის ერთი სვეტი. Price → სვეტი Price.
+→ ობიექტი = ჩანაწერი
+მესამე: ერთი ობიექტი — ერთი ჩანაწერი, ერთი ხაზი ცხრილში.
+! ეს სამი წესი დაიმახსოვრეთ — მთელი დღის ლექცია მათზე დგას: კლასი = ცხრილი, property = სვეტი, ობიექტი = ჩანაწერი.
+  </aside>
+</section>
+
+<!-- 8. TRANSLATOR FLOW -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">ORM მუშაობაში</div>
+  <h2>როგორ თარგმნის ORM — ორივე მიმართულებით</h2>
+  <svg viewBox="0 0 1420 540" width="1420" height="540">
+    <!-- C# request -->
+    <g class="in" style="--d:.2s"><rect x="10" y="40" width="330" height="170" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="30" y="78" class="tn b" font-size="19">C# კოდი</text>
+      <text x="30" y="125" class="tw mono" font-size="20">db.Products</text>
+      <text x="30" y="160" class="tw mono" font-size="20">  .Where(p =></text>
+      <text x="30" y="190" class="tw mono" font-size="20">    p.Price &lt; 100)</text></g>
+    <!-- ORM -->
+    <g class="step zoom draw" style="transform-origin:590px 280px">
+      <path d="M345 125 H475" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="475,113 495,125 475,137" fill="#2563eb"/>
+      <rect x="500" y="40" width="190" height="460" rx="22" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/>
+      <text x="595" y="250" text-anchor="middle" font-size="54" class="spin">⚙️</text>
+      <text x="595" y="320" text-anchor="middle" class="tp b" font-size="24">ORM</text>
+      <text x="595" y="350" text-anchor="middle" class="tm" font-size="17">თარგმნის</text></g>
+    <!-- SQL -->
+    <g class="step fade draw">
+      <path d="M695 125 H825" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="825,113 845,125 825,137" fill="#2563eb"/>
+      <g class="late" style="--ld:.6s"><rect x="850" y="55" width="330" height="140" rx="16" fill="#eaf2fe" stroke="#2563eb" stroke-width="2.5"/>
+      <text x="870" y="92" class="tb b" font-size="18">SQL — ORM-მა დაწერა</text>
+      <text x="870" y="136" class="tw mono" font-size="19">SELECT * FROM Products</text>
+      <text x="870" y="170" class="tw mono" font-size="19">WHERE Price &lt; 100</text></g></g>
+    <!-- DB -->
+    <g class="step fade draw">
+      <path d="M1185 125 H1235" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="1235,113 1255,125 1235,137" fill="#2563eb"/>
+      <g class="late" style="--ld:.5s"><path d="M1262 100 v300 a75 20 0 0 0 150 0 v-300" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="1337" cy="100" rx="75" ry="20" fill="#fef5e4" stroke="#d97706" stroke-width="3"/>
+      <text x="1337" y="260" text-anchor="middle" font-size="44">🗄️</text><text x="1337" y="310" text-anchor="middle" class="to b" font-size="20">SQL Server</text></g></g>
+    <!-- rows back -->
+    <g class="step fade draw">
+      <path d="M1255 420 H1185" stroke="#16a34a" stroke-width="4" fill="none"/><polygon points="1185,408 1165,420 1185,432" fill="#16a34a"/>
+      <g class="late" style="--ld:.6s"><rect x="850" y="350" width="310" height="140" rx="16" fill="#eaf8ef" stroke="#16a34a" stroke-width="2.5"/>
+      <text x="870" y="385" class="tg b" font-size="18">ჩანაწერები (rows)</text>
+      <text x="870" y="425" class="tw mono" font-size="19">2 │ მაუსი      │ 45</text>
+      <text x="870" y="460" class="tw mono" font-size="19">5 │ კლავიატურა │ 80</text></g></g>
+    <!-- objects back -->
+    <g class="step fade draw">
+      <path d="M845 420 H695" stroke="#16a34a" stroke-width="4" fill="none"/><path d="M500 420 H345" stroke="#16a34a" stroke-width="4" fill="none"/><polygon points="345,408 325,420 345,432" fill="#16a34a"/>
+      <g class="late" style="--ld:.7s"><rect x="10" y="340" width="310" height="160" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="30" y="376" class="tn b" font-size="19">C# ობიექტები</text>
+      <text x="30" y="418" class="tw mono" font-size="18">List&lt;Product&gt;</text>
+      <text x="30" y="452" class="tw mono" font-size="17">{ Id=2, Name="მაუსი" }</text>
+      <text x="30" y="482" class="tw mono" font-size="17">{ Id=5, Name="კლავიატურა" }</text></g></g>
+  </svg>
+  <aside class="notes">
+⏱ 0:19 · 4 წთ
+ვნახოთ, რა ხდება, როცა ORM-ს ვთხოვთ „მომეცი 100 ლარზე იაფი პროდუქტები“. მარცხნივ — ჩვენი C# კოდი. SQL-ის არც ერთი სიტყვა.
+→ ORM იღებს
+ჩვენი თხოვნა მიდის ORM-თან. ORM-მა იცის ჩვენი Mapping-ი.
+→ SQL
+ORM თარგმნის: C# → SQL. ეს SQL ჩვენ არ დაგვიწერია!
+→ ბაზა
+SQL მიდის SQL Server-ში. ბაზისთვის არაფერი შეცვლილა — ჩვეულებრივ SQL-ს იღებს.
+→ ჩანაწერები
+ბაზა აბრუნებს ჩანაწერებს — ცხრილის ხაზებს.
+→ ობიექტები
+ORM ისევ თარგმნის, ახლა უკან: ხაზები → C#-ის ობიექტები. ჩვენ ვიღებთ ჩვეულებრივ List-ს.
+! ჩვენ ორივე მხარეს მხოლოდ C#-ს ვხედავთ. თარგმანს ORM აკეთებს.
+  </aside>
+</section>
+
+<!-- 9. ORMs EVERYWHERE -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">ORM ყველგანაა</div>
+  <h2>ყველა ენას თავისი ORM აქვს</h2>
+  <div class="grid4">
+    <div class="card step zoom"><p class="tiny">Java</p><h3>Hibernate</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">Python</p><h3>SQLAlchemy · Django ORM</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">JavaScript / TypeScript</p><h3>Prisma · TypeORM</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">PHP (Laravel)</p><h3>Eloquent</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">Ruby (Rails)</p><h3>Active Record</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">Go</p><h3>GORM</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">C# · მცირე ORM</p><h3>Dapper</h3></div>
+    <div class="card accent step zoom" style="--a:var(--core)"><p class="tiny">C# · .NET</p><h3 class="c-core">EF Core ⭐</h3></div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--core)">სახელები სხვადასხვაა, <b>იდეა — ერთი</b>: კლასი = ცხრილი, property = სვეტი, ობიექტი = ჩანაწერი. ერთხელ ისწავლი — ყველგან ამოიცნობ.</div>
+  <aside class="notes">
+⏱ 0:23 · 2 წთ
+ORM მხოლოდ C#-ში არ არსებობს.
+→ სხვა ენები
+Java-ში Hibernate, Python-ში SQLAlchemy და Django ORM, JavaScript-ში Prisma, PHP-ში Eloquent, Ruby-ში Active Record. C#-შიც არის მცირე ORM — Dapper: SQL-ს თვითონ წერ, ის მხოლოდ ობიექტებად გარდაქმნის.
+→ EF Core
+და C#-ის მთავარი, Microsoft-ის ოფიციალური ORM — Entity Framework Core. დღეს მას ვსწავლობთ.
+→ დასკვნა
+! თუ ხვალ სამსახურში Python-ზე მოგიწევთ მუშაობა — SQLAlchemy-ს ნახავთ და იტყვით: „ეს ხომ იგივეა“.
+  </aside>
+</section>
+
+<!-- ============ PART 3: EF CORE ============ -->
+<section class="slide divider" data-section="3 · EF Core">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 3</div>
+    <h1 class="in" style="--d:.1s"><span class="grad">EF Core</span><br>— C#-ის ORM</h1>
+    <p class="lead mt in" style="--d:.3s">Entity Framework Core</p>
+  </div>
+  <div class="big-num">03</div>
+  <aside class="notes">
+⏱ 0:25
+ახლა ჩვენი ORM გავიცნოთ — EF Core.
+  </aside>
+</section>
+
+<!-- 10. WHAT IS EF CORE -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">გაცნობა</div>
+  <h2 style="display:flex;align-items:center;gap:24px">რა არის <span class="c-core">EF Core?</span><span class="pill on in zoom" style="--d:.3s;--a:var(--core);font-size:18px;padding:10px 18px">EF Core 10 · .NET 10 · LTS</span></h2>
+  <div class="grid2">
+    <div class="card accent step zoom" style="--a:var(--net)"><h3><span class="ico">🏢</span>Microsoft-ის ოფიციალური</h3><p>.NET-ის გუნდი ქმნის — .NET-თან ერთად ახლდება ყოველ წელს</p></div>
+    <div class="card accent step zoom" style="--a:var(--mvc)"><h3><span class="ico">🆓</span>უფასო და Open Source</h3><p>კოდი GitHub-ზეა, მოდის როგორც <b>NuGet პაკეტი</b></p></div>
+    <div class="card accent step zoom" style="--a:var(--api)"><h3><span class="ico">💻</span>ყველგან მუშაობს</h3><p>Windows, Linux, macOS · Console, Web API, Desktop</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp)"><h3><span class="ico">🔌</span>ბევრ ბაზასთან</h3><p><span class="chip">SQL Server</span><span class="chip">PostgreSQL</span><span class="chip">SQLite</span><span class="chip">MySQL</span><span class="chip">Oracle</span></p></div>
+  </div>
+  <div class="callout step mt" style="--a:var(--asp)">ბაზის შეცვლა = <b>მხოლოდ ერთი პაკეტის</b> შეცვლა. ჩვენ ვიყენებთ <b>SQL Server</b>-ს.</div>
+  <aside class="notes">
+⏱ 0:25 · 3 წთ
+EF Core — Entity Framework Core. დღეს ბოლო სტაბილური ვერსიაა EF Core 10, .NET 10-თან ერთად. ორივე LTS-ია — სამი წელი მიიღებს მხარდაჭერას.
+→ Microsoft
+Microsoft-ის ოფიციალური ORM. .NET-ის გუნდი აკეთებს, ამიტომ .NET-თან ყველაზე კარგად ინტეგრირდება.
+→ Open Source
+უფასოა, კოდი ღიაა GitHub-ზე. პროექტში მოდის NuGet პაკეტად — ამას პირველ ნაბიჯში ვნახავთ.
+→ ყველგან
+მუშაობს Windows-ზეც და Linux-ზეც. დღეს კონსოლში ვიყენებთ, შემდეგ კურსზე — Web API-ში. კოდი იგივე იქნება.
+→ ბევრი ბაზა
+SQL Server, PostgreSQL, SQLite, MySQL... თითოეულისთვის ცალკე პაკეტია — „პროვაიდერი“.
+→ დასკვნა
+! ჩვენი C# კოდი ბაზაზე არ არის მიბმული. ხვალ PostgreSQL-ზე თუ გადავალთ, ძირითადად ერთ პაკეტს და ერთ ხაზს შევცვლით.
+  </aside>
+</section>
+
+<!-- 11. LINQ -> SQL -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">EF Core თარგმნის</div>
+  <h2>ჩვენ ვწერთ <span class="c-net">LINQ</span>-ს, ბაზა იღებს <span class="c-asp">SQL</span>-ს</h2>
+  <div class="grid2" style="align-items:start">
+    <div class="col"><p class="tiny">ჩვენ ვწერთ · C#</p>
+      <code-block id="linq" lang="csharp" cls="big" title="Program.cs">
+var cheap = db.Products
+    .Where(p => p.Price < 100)
+    .OrderBy(p => p.Name)
+    .ToList();
+      </code-block></div>
+    <div class="col step right"><p class="tiny">EF Core აგენერირებს · SQL</p>
+      <code-block id="sqlq" lang="sql" cls="big" title="SQL Server-ს მიდის">
+SELECT [p].[Id], [p].[Name], [p].[Price]
+FROM [Products] AS [p]
+WHERE [p].[Price] < 100.0
+ORDER BY [p].[Name]
+      </code-block></div>
+  </div>
+  <div class="grid4 mt" style="gap:16px">
+    <i class="codestep" data-for="linq" data-lines="1"></i><i class="codestep" data-for="sqlq" data-lines="2" data-with></i>
+    <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>db.Products</b> → FROM Products</div>
+    <i class="codestep" data-for="linq" data-lines="2"></i><i class="codestep" data-for="sqlq" data-lines="3" data-with></i>
+    <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>Where</b> → WHERE</div>
+    <i class="codestep" data-for="linq" data-lines="3"></i><i class="codestep" data-for="sqlq" data-lines="4" data-with></i>
+    <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>OrderBy</b> → ORDER BY</div>
+    <i class="codestep" data-for="linq" data-lines="4"></i><i class="codestep" data-for="sqlq" data-lines="1" data-with></i>
+    <div class="callout step" data-with style="--a:var(--mvc);font-size:19px"><b>ToList()</b> — ახლა იგზავნება!</div>
+  </div>
+  <aside class="notes">
+⏱ 0:28 · 4 წთ
+C#-ში ცხრილებთან სამუშაოდ LINQ-ს ვიყენებთ — Where, OrderBy, Select — ის, რაც სიებზე უკვე ვისწავლეთ.
+? ვინ გაიხსენებს, რას აკეთებს Where სიაზე? (ფილტრავს.)
+→ SQL
+ახლა მარჯვნივ — SQL, რომელსაც EF Core ამ კოდიდან აგენერირებს. ეს ჩვენ არ დაგვიწერია!
+→ db.Products
+db.Products — ეს არის ცხრილი Products. ხდება FROM Products.
+→ Where
+Where — ხდება WHERE. ჩვენი ლამბდა p.Price < 100 — SQL-ის პირობად იქცა.
+→ OrderBy
+OrderBy — ხდება ORDER BY.
+→ ToList
+! ToList — ყველაზე მნიშვნელოვანი: სანამ ToList-ს არ დავწერთ, ბაზაში არაფერი იგზავნება. ToList-ის მომენტში EF Core აწყობს SQL-ს, აგზავნის და შედეგს სიად გვიბრუნებს.
+  </aside>
+</section>
+
+<!-- 12. CODE FIRST -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">ორი მიდგომა</div>
+  <h2>რა იქმნება პირველი — კოდი თუ ბაზა?</h2>
+  <div class="col" style="gap:34px;margin-top:20px">
+    <div class="step left">
+      <p class="small" style="margin-bottom:10px;color:var(--muted)"><b style="color:var(--muted)">Database First</b> — ბაზა უკვე არსებობს</p>
+      <div class="flowrow" style="opacity:.6">
+        <div class="fbox" style="--a:var(--asp)"><div class="e">🗄️</div><div class="l">ბაზა</div><div class="s">უკვე შექმნილი</div></div>
+        <div class="farrow" style="--a:var(--muted)"><span class="ar">⟶</span>Scaffold</div>
+        <div class="fbox" style="--a:var(--net)"><div class="e">📄</div><div class="l">C# კლასები</div><div class="s">გენერირდება</div></div>
+      </div>
+    </div>
+    <div class="step left">
+      <p class="small" style="margin-bottom:10px"><b class="c-core">Code First</b> — ჯერ კოდს ვწერთ</p>
+      <div class="flowrow">
+        <div class="fbox" style="--a:var(--net)"><div class="e">📄</div><div class="l">C# კლასები</div><div class="s">ჩვენ ვწერთ</div></div>
+        <div class="farrow" style="--a:var(--core)"><span class="ar">⟶</span>მიგრაცია</div>
+        <div class="fbox" style="--a:var(--asp)"><div class="e">🗄️</div><div class="l">ბაზა</div><div class="s">EF Core ქმნის</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="solve step mt">დღეს ვმუშაობთ <b>Code First</b>-ით — <b>ბაზას ხელით არ ვქმნით</b>, მას ჩვენი კოდიდან EF Core შექმნის</div>
+  <aside class="notes">
+⏱ 0:32 · 2 წთ
+EF Core-თან მუშაობის ორი გზა არსებობს.
+→ Database First
+Database First: ბაზა უკვე არსებობს — მაგალითად, ძველ პროექტში. EF Core კითხულობს ბაზას და მისგან C#-ის კლასებს აგენერირებს.
+→ Code First
+Code First: ჯერ C#-ის კლასებს ვწერთ, მერე EF Core „მიგრაციით“ ბაზას ქმნის.
+→ ჩვენი არჩევანი
+! დღეს Code First-ს ვიყენებთ — ეს თანამედროვე პროექტებში ყველაზე გავრცელებულია. SSMS-ში CREATE TABLE-ს აღარ დავწერთ — ამას ჩვენი კოდი გააკეთებს.
+  </aside>
+</section>
+
+<!-- 13. KEY PLAYERS -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">მთავარი მოთამაშეები</div>
+  <h2>4 ცნება, რომელსაც დღეს შევხვდებით</h2>
+  <div class="grid4">
+    <div class="card accent step zoom" style="--a:var(--net)"><h3><span class="ico">📄</span>Entity</h3><p><code class="i">Product</code></p><p class="small mt" style="margin-top:12px">ჩვეულებრივი კლასი, რომელიც <b>ცხრილი</b> გახდება</p></div>
+    <div class="card accent step zoom" style="--a:var(--core)"><h3><span class="ico">🎛️</span>DbContext</h3><p><code class="i">DataContext</code></p><p class="small mt" style="margin-top:12px">ბაზის <b>„პულტი“</b>: კავშირი და ყველა ცხრილი ერთად</p></div>
+    <div class="card accent step zoom" style="--a:var(--api)"><h3><span class="ico">📋</span>DbSet</h3><p><code class="i">Products</code></p><p class="small mt" style="margin-top:12px"><b>ცხრილი კოდში</b>: Add, Remove, Where…</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp)"><h3><span class="ico">📐</span>Migration</h3><p><code class="i">InitialCreate</code></p><p class="small mt" style="margin-top:12px">ბაზის ცვლილების <b>„ნახაზი“</b></p></div>
+  </div>
+  <svg viewBox="0 0 1420 220" width="1420" height="220" class="step fade" style="margin-top:22px">
+    <rect x="200" y="20" width="520" height="180" rx="20" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/>
+    <text x="230" y="60" class="tp b mono" font-size="22">DataContext</text>
+    <rect x="240" y="85" width="440" height="80" rx="14" fill="#eaf2fe" stroke="#2563eb" stroke-width="2.5"/>
+    <text x="460" y="134" text-anchor="middle" class="tw mono b" font-size="21">DbSet&lt;Product&gt; Products</text>
+    <path d="M690 125 H930" stroke="#0d9488" stroke-width="4" class="flow"/><polygon points="930,113 950,125 930,137" fill="#0d9488"/>
+    <path d="M960 70 v110 a90 20 0 0 0 180 0 v-110" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="1050" cy="70" rx="90" ry="20" fill="#fef5e4" stroke="#d97706" stroke-width="3"/>
+    <text x="1050" y="142" text-anchor="middle" class="tw mono b" font-size="21">Products</text>
+    <text x="1050" y="172" text-anchor="middle" class="tm" font-size="16">ცხრილი</text>
+  </svg>
+  <aside class="notes">
+⏱ 0:34 · 3 წთ
+სანამ პრაქტიკაზე გადავალთ, ოთხი სიტყვა უნდა ვიცოდეთ. ოთხივეს დღეს ხელით დავწერთ.
+→ Entity
+Entity — ჩვეულებრივი C#-ის კლასი, მაგალითად Product. ერთი Entity = ერთი ცხრილი.
+→ DbContext
+DbContext — ბაზის „პულტი“. იცის, სად არის ბაზა, და მასში ჩამოთვლილია ყველა ცხრილი. ჩვენს კლასს DataContext დავარქმევთ.
+→ DbSet
+DbSet — ერთი ცხრილი კოდში. Products-ზე ვწერთ Add, Remove, Where — ისე, როგორც ჩვეულებრივ სიაზე.
+→ Migration
+Migration — ნახაზი: „ბაზაში ეს და ეს უნდა შეიქმნას“.
+→ ერთად
+! ერთად ასე გამოიყურება: DataContext-ის შიგნით DbSet Products, რომელიც ბაზის ცხრილ Products-ს შეესაბამება.
+  </aside>
+</section>
+
+<!-- ============ PART 4: 4 STEPS ============ -->
+<section class="slide divider" data-section="4 · 4 ნაბიჯი">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 4 · მე ვაჩვენებ</div>
+    <h1 class="in" style="--d:.1s">პროექტის მომზადება<br><span class="grad">4 ნაბიჯში</span></h1>
+    <div class="row mt in" style="--d:.4s;gap:14px;flex-wrap:wrap">
+      <span class="pill on" style="--a:var(--core);font-size:18px">① პაკეტები</span>
+      <span class="pill on" style="--a:var(--core);font-size:18px">② DataContext</span>
+      <span class="pill on" style="--a:var(--core);font-size:18px">③ Connection String</span>
+      <span class="pill on" style="--a:var(--core);font-size:18px">④ მიგრაცია</span>
+    </div>
+  </div>
+  <div class="big-num">04</div>
+  <aside class="notes">
+⏱ 0:37 · 1 წთ
+ახლა მთავარი ნაწილი. ეს ოთხი ნაბიჯი ყოველ ახალ პროექტში ერთნაირია — დღესაც, Web API-შიც, სამსახურშიც.
+! ახლა მე ვაკეთებ, თქვენ უყურებთ. კოდს ჯერ არ წერთ — უბრალოდ თვალი მიადევნეთ და გაიგეთ. მერე ერთად გავაკეთებთ.
+~ ამ ნაწილს პარალელურად ატარებ: სლაიდი → Visual Studio → სლაიდი.
+  </aside>
+</section>
+
+<!-- 14. PREP: CONSOLE APP -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="kicker">ნაბიჯი 0 · მომზადება</div>
+  <h2>ახალი პროექტი: <span class="c-net">Console App</span></h2>
+  <div class="grid2" style="align-items:start">
+    <div class="mock step left">
+      <div class="mh">Visual Studio · Create a new project</div>
+      <div class="mb col" style="gap:12px">
+        <div class="field">Console App <span class="tiny">· C#</span></div>
+        <div class="row" style="gap:12px;align-items:center"><span class="tiny" style="min-width:150px">Project name</span><div class="field hot f1">ShopDemo</div></div>
+        <div class="row" style="gap:12px;align-items:center"><span class="tiny" style="min-width:150px">Framework</span><div class="field f1">.NET 10.0 (Long Term Support)</div></div>
+      </div>
+    </div>
+    <div class="col step right">
+      <p class="tiny">ან ტერმინალიდან</p>
+      <div class="term"><div class="bar"><i></i><i></i><i></i><span>Terminal</span></div>
+        <div class="body"><div class="cmd">dotnet new console -n ShopDemo</div><div class="out">The template "Console App" was created successfully.</div></div></div>
+      <div class="callout mt" style="--a:var(--net)">ჩვენი მაგალითი: <b>ონლაინ მაღაზია</b> და ერთი ცხრილი — <b>Products</b></div>
+    </div>
+  </div>
+  <aside class="notes">
+⏱ 0:38 · 2 წთ · ~ VS-ში: File → New → Project
+ჯერ ჩვეულებრივი Console App. აქ ახალი არაფერია.
+→ Visual Studio
+Console App, სახელი ShopDemo, Framework — .NET 10.
+→ ტერმინალი
+იგივე ტერმინალიდან ერთი ბრძანებით. რომელი გზაც გირჩევნიათ.
+~ VS-ში შექმენი პროექტი. ჩვენი მაგალითია მაღაზია და ერთი ცხრილი Products.
+  </aside>
+</section>
+
+<!-- 15. STEP 1: PACKAGES -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="on">① პაკეტები</span><span>② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 1 / 4</div>
+  <h2>4 პაკეტის დაყენება</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1.1fr;align-items:start">
+    <div class="col" style="gap:12px">
+      <p class="tiny">Project → Manage NuGet Packages → Browse</p>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">Microsoft.EntityFrameworkCore</div><div class="ds">EF Core-ის ძრავი</div></div><span class="btn">Install</span></div>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">…EntityFrameworkCore<b class="c-asp">.SqlServer</b></div><div class="ds">SQL Server-თან სალაპარაკოდ</div></div><span class="btn">Install</span></div>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">…EntityFrameworkCore<b class="c-core">.Tools</b></div><div class="ds">მიგრაციის ბრძანებები VS-ში</div></div><span class="btn">Install</span></div>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">…EntityFrameworkCore<b class="c-api">.Design</b></div><div class="ds">მიგრაციების გენერაცია</div></div><span class="btn">Install</span></div>
+    </div>
+    <div class="col step right" style="gap:12px">
+      <p class="tiny">ან Package Manager Console-დან</p>
+      <div class="term"><div class="bar"><i></i><i></i><i></i><span>Package Manager Console</span></div>
+        <div class="body" style="font-size:16px"><div class="pm">Install-Package Microsoft.EntityFrameworkCore</div><div class="pm">Install-Package Microsoft.EntityFrameworkCore.SqlServer</div><div class="pm">Install-Package Microsoft.EntityFrameworkCore.Tools</div><div class="pm">Install-Package Microsoft.EntityFrameworkCore.Design</div></div></div>
+      <p class="tiny">ან ტერმინალიდან: <code class="i">dotnet add package &lt;სახელი&gt;</code></p>
+    </div>
+  </div>
+  <div class="callout step mt" style="--a:var(--asp)">⚠ 4-ივე პაკეტი — <b>ერთი და იგივე ვერსია</b> (10.0.x), და ემთხვევა პროექტის <b>.NET 10</b>-ს</div>
+  <aside class="notes">
+⏱ 0:40 · 4 წთ · ~ VS-ში: მარჯვენა კლიკი პროექტზე → Manage NuGet Packages
+პირველი ნაბიჯი: EF Core პროექტში ჯერ არ არის. ის NuGet პაკეტებად უნდა ჩამოვტვირთოთ — ოთხი პაკეტი.
+? გახსოვთ, რა არის NuGet? (.NET-ის „მაღაზია“ ბიბლიოთეკებისთვის.)
+→ EntityFrameworkCore
+პირველი: Microsoft.EntityFrameworkCore — თვითონ EF Core, ძრავი.
+→ SqlServer
+მეორე: .SqlServer — SQL Server-თან ლაპარაკის ცოდნა.
+→ Tools
+მესამე: .Tools — მიგრაციის ბრძანებები Visual Studio-ს კონსოლში: Add-Migration და Update-Database.
+→ Design
+მეოთხე: .Design — ის, რაც მიგრაციის ფაილებს რეალურად აგენერირებს. ტერმინალიდან dotnet ef-ით მუშაობისთვისაც ესაა საჭირო.
+→ Package Manager Console
+იგივე შეიძლება ბრძანებებით: Tools → NuGet Package Manager → Package Manager Console. ოთხი ხაზი — და მზადაა.
+→ ვერსია
+! ხშირი შეცდომა: ერთი პაკეტი 10, მეორე 9. ოთხივე ერთი ვერსიის უნდა იყოს და .NET-ის ვერსიას უნდა ემთხვეოდეს.
+~ VS-ში დააყენე ოთხივე და აჩვენე Dependencies → Packages.
+  </aside>
+</section>
+
+<!-- 16. STEP 1: WHAT EACH PACKAGE DOES -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="on">① პაკეტები</span><span>② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 1 / 4</div>
+  <h2>რას აკეთებს თითოეული პაკეტი?</h2>
+  <div class="grid2" style="gap:22px">
+    <div class="card accent step zoom" style="--a:var(--net)"><h3><span class="ico">⚙️</span><span class="mono" style="font-size:21px">EntityFrameworkCore</span></h3><p><b>ძრავი</b> — DbContext, DbSet, LINQ → SQL თარგმანი</p><p class="tiny mt" style="margin-top:10px">🏃 პროგრამის გაშვებისას</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp)"><h3><span class="ico">🗣️</span><span class="mono" style="font-size:21px">.SqlServer</span></h3><p><b>პროვაიდერი</b> — იცის SQL Server-ის „დიალექტი“. PostgreSQL-ს სხვა პროვაიდერი აქვს</p><p class="tiny mt" style="margin-top:10px">🏃 პროგრამის გაშვებისას</p></div>
+    <div class="card accent step zoom" style="--a:var(--core)"><h3><span class="ico">🧰</span><span class="mono" style="font-size:21px">.Tools</span></h3><p>ბრძანებები VS-ის კონსოლში: <code class="i">Add-Migration</code>, <code class="i">Update-Database</code></p><p class="tiny mt" style="margin-top:10px">👨‍💻 მხოლოდ დეველოპერს</p></div>
+    <div class="card accent step zoom" style="--a:var(--api)"><h3><span class="ico">📐</span><span class="mono" style="font-size:21px">.Design</span></h3><p>მიგრაციის ფაილების <b>გენერაცია</b> · საჭიროა <code class="i">dotnet ef</code>-საც</p><p class="tiny mt" style="margin-top:10px">👨‍💻 მხოლოდ დეველოპერს</p></div>
+  </div>
+  <aside class="notes">
+⏱ 0:44 · 2 წთ
+რატომ ოთხი პაკეტი? ყოველს თავისი საქმე აქვს. ორი პროგრამის მუშაობისთვისაა, ორი — დეველოპერისთვის.
+→ ძრავი
+EntityFrameworkCore — ძრავი: DbContext, DbSet, LINQ-ის SQL-ად თარგმნა.
+→ SqlServer
+SqlServer — „პროვაიდერი“, თარჯიმანი კონკრეტულად SQL Server-ისთვის. სხვა ბაზას სხვა დიალექტი აქვს, ამიტომ სხვა პროვაიდერი.
+→ Tools
+Tools — მიგრაციის ბრძანებები Visual Studio-ს კონსოლში. პროგრამის გაშვებისას არ გამოიყენება.
+→ Design
+Design — ის, რაც მიგრაციის ფაილს რეალურად წერს. Tools მას იყენებს, ტერმინალის dotnet ef-იც.
+! ბაზის შეცვლა = პროვაიდერის შეცვლა. ძრავი და ჩვენი კოდი რჩება იგივე.
+~ თუ ჰკითხავენ: SqlServer-ს ძრავი, Tools-ს კი Design თავისით მოყვება, ამიტომ ორიც იმუშავებდა. ოთხს ცალკე ვაყენებთ, რომ ჩანდეს, რა საიდან მოდის.
+  </aside>
+</section>
+
+<!-- 17. STEP 2a: ENTITY -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="on">② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 2 / 4 · ჯერ Entity</div>
+  <h2>კლასი, რომელიც ცხრილი გახდება</h2>
+  <div class="grid2" style="grid-template-columns:1.15fr 1fr;align-items:start">
+    <div class="col">
+      <code-block id="ent" lang="csharp" cls="big" title="Product.cs">
+namespace ShopDemo;
+
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+      </code-block>
+    </div>
+    <div class="col" style="gap:16px">
+      <i class="codestep" data-for="ent" data-lines="3-4,8"></i>
+      <div class="callout step" data-with style="--a:var(--net)"><b>class Product</b> → ცხრილი <b>Products</b></div>
+      <i class="codestep" data-for="ent" data-lines="5"></i>
+      <div class="callout step" data-with style="--a:var(--core)"><b>Id</b> — EF თვითონ ხვდება: ეს <b>Primary Key</b>-ია, IDENTITY-თი</div>
+      <i class="codestep" data-for="ent" data-lines="6-7"></i>
+      <div class="callout step" data-with style="--a:var(--asp)">C#-ის ტიპი → <b>SQL-ის ტიპი</b> ავტომატურად</div>
+      <i class="codestep" data-for="ent" data-lines="all"></i>
+      <table class="t step fade" data-with style="font-size:18px"><tr><th>სვეტი</th><th>SQL ტიპი</th><th></th></tr>
+        <tr><td class="mono">Id</td><td class="mono">int IDENTITY</td><td>🔑 PK</td></tr>
+        <tr><td class="mono">Name</td><td class="mono">nvarchar(max)</td><td>NOT NULL</td></tr>
+        <tr><td class="mono">Price</td><td class="mono">decimal(18,2)</td><td>NOT NULL</td></tr></table>
+    </div>
+  </div>
+  <aside class="notes">
+⏱ 0:46 · 3 წთ · ~ VS-ში: Add → Class → Product.cs
+მეორე ნაბიჯი ორ ნაწილად: ჯერ Entity, მერე DataContext. ვიწყებთ Entity-ით — ის კლასი, რომელიც ცხრილი გახდება.
+→ კლასი
+ჩვეულებრივი C#-ის კლასია. არაფერი განსაკუთრებული. class Product → ცხრილი Products.
+→ Id
+! ყურადღება: property-ს სახელი Id. EF Core-ს აქვს შეთანხმება: Id ან ProductId — ეს არის Primary Key, და IDENTITY-თი ავტომატურად იზრდება. Id-ს თუ დაგავიწყდათ — EF შეცდომას მოგცემთ.
+→ Name და Price
+C#-ის ტიპებს EF თვითონ თარგმნის SQL-ის ტიპებად: string → nvarchar, decimal → decimal(18,2).
+~ = string.Empty — რომ Name null არ იყოს; ამიტომ სვეტი NOT NULL იქნება.
+→ ცხრილი
+აი, როგორი ცხრილი გამოვა ამ კლასიდან. ჯერ არ შექმნილა — ესაა ის, რაც მიგრაციის შემდეგ გაჩნდება.
+  </aside>
+</section>
+
+<!-- 18. STEP 2b: DATACONTEXT -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="on">② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 2 / 4 · ახლა DataContext</div>
+  <h2>ბაზის კლასი — <span class="c-core">DataContext</span></h2>
+  <div class="grid2" style="grid-template-columns:1.15fr 1fr;align-items:start">
+    <code-block id="ctx" lang="csharp" cls="big" title="DataContext.cs">
+using Microsoft.EntityFrameworkCore;
+
+namespace ShopDemo;
+
+public class DataContext : DbContext
+{
+    public DbSet<Product> Products { get; set; }
+}
+    </code-block>
+    <div class="col" style="gap:16px">
+      <i class="codestep" data-for="ctx" data-lines="1"></i>
+      <div class="callout step" data-with style="--a:var(--muted)"><b>using</b> — EF Core-ის კლასები პაკეტიდან</div>
+      <i class="codestep" data-for="ctx" data-lines="5"></i>
+      <div class="callout step" data-with style="--a:var(--core)"><b>: DbContext</b> — მემკვიდრეობით ჩვენი კლასი ხდება ბაზის <b>„პულტი“</b></div>
+      <i class="codestep" data-for="ctx" data-lines="7"></i>
+      <div class="callout step" data-with style="--a:var(--api)"><b>DbSet&lt;Product&gt; Products</b> — ცხრილი. property-ს სახელი = <b>ცხრილის სახელი</b></div>
+      <i class="codestep" data-for="ctx" data-lines="all"></i>
+      <div class="solve step" data-with>ახალი ცხრილი? → კიდევ ერთი <b>DbSet</b> ხაზი</div>
+    </div>
+  </div>
+  <aside class="notes">
+⏱ 0:49 · 3 წთ · ~ VS-ში: Add → Class → DataContext.cs
+ახლა მთავარი კლასი — DataContext. სახელი ჩვენი არჩეულია, ხშირად AppDbContext-საც არქმევენ.
+→ using
+ჯერ using Microsoft.EntityFrameworkCore — ამ პაკეტიდან მოდის DbContext და DbSet. პირველი ნაბიჯის გარეშე ეს ხაზი წითელი იქნებოდა.
+→ : DbContext
+! ყველაზე მნიშვნელოვანი: ჩვენი კლასი DbContext-ისგან მემკვიდრეობით იღებს ყველაფერს — კავშირს, თარგმანს, შენახვას. ჩვენ მხოლოდ ვეუბნებით, რა ცხრილები გვაქვს.
+→ DbSet
+DbSet<Product> Products — ეს არის ცხრილი Products. property-ს სახელი ხდება ცხრილის სახელი.
+→ ახალი ცხრილი
+ხვალ კატეგორიებიც დაგვჭირდება? კიდევ ერთი ხაზი: DbSet<Category> Categories. სულ ესაა.
+? ჯერ რა აკლია ჩვენს DataContext-ს? (არ იცის, სად არის ბაზა! — ეს მესამე ნაბიჯია.)
+  </aside>
+</section>
+
+<!-- 19. STEP 3a: COPY FROM VISUAL STUDIO -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="on">③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 3 / 4 · Connection String</div>
+  <h2>Connection String-ს <span class="c-net">Visual Studio</span>-დან ვიღებთ</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1.1fr;align-items:start">
+    <div class="mock step left">
+      <div class="mh">View → SQL Server Object Explorer</div>
+      <div class="mb tree"><span class="n"><i>🖥️</i>SQL Server</span><span class="n lvl1 hi" style="background:color-mix(in srgb,var(--net) 10%,#fff);border-radius:8px"><i>🗄️</i>(localdb)\MSSQLLocalDB</span><span class="n lvl2"><i>📁</i>Databases</span><span class="n lvl2"><i>📁</i>Security</span></div>
+    </div>
+    <ol class="col" style="gap:14px;list-style:none">
+      <li class="card step right row" style="align-items:center;gap:18px;padding:16px 22px"><span class="verb" style="--a:var(--net);font-size:38px">1</span><p>გახსენი <b>SQL Server Object Explorer</b></p></li>
+      <li class="card step right row" style="align-items:center;gap:18px;padding:16px 22px"><span class="verb" style="--a:var(--net);font-size:38px">2</span><p>სერვერზე მარჯვენა კლიკი → <b>Properties</b></p></li>
+      <li class="card step right row" style="align-items:center;gap:18px;padding:16px 22px"><span class="verb" style="--a:var(--net);font-size:38px">3</span><p><b>Connection String</b> → დააკოპირე 📋</p></li>
+    </ol>
+  </div>
+  <div class="solve step mt">სტრიქონს ხელით არ ვწერთ — <b>Visual Studio მზას გვაძლევს</b></div>
+  <aside class="notes">
+⏱ 0:52 · 3 წთ · ~ VS-ში: View → SQL Server Object Explorer
+მესამე ნაბიჯი: DataContext-ს უნდა ვუთხრათ, სად არის ბაზა. ამას ჰქვია Connection String — კავშირის სტრიქონი.
+კარგი ამბავი: მას ხელით არ ვწერთ. Visual Studio მზას გვაძლევს.
+→ Object Explorer
+გახსენით View → SQL Server Object Explorer. აქ ჩანს თქვენი SQL Server.
+→ 1
+→ 2
+სერვერზე მარჯვენა კლიკი → Properties.
+→ 3
+Properties ფანჯარაში არის ველი Connection String. დააკოპირეთ მთლიანად.
+→ დასკვნა
+! სტრიქონს ხელით არ ვწერთ — ვაკოპირებთ.
+  </aside>
+</section>
+
+<!-- 21. STEP 3b: OnConfiguring -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="on">③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 3 / 4 · ჩასმა კოდში</div>
+  <h2>DataContext-ს ვეუბნებით, სად არის ბაზა</h2>
+  <code-block id="conf" lang="csharp" cls="" title="DataContext.cs">
+public class DataContext : DbContext
+{
+    public DbSet<Product> Products { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder options)
+    {
+        options.UseSqlServer(@"აქ ჩასვი VS-დან დაკოპირებული სტრიქონი");
+    }
+}
+  </code-block>
+  <div class="grid3 mt" style="gap:18px">
+    <i class="codestep" data-for="conf" data-lines="5-6,8"></i>
+    <div class="callout step" data-with style="--a:var(--core);font-size:19px"><b>OnConfiguring</b> — EF აქ კითხულობს პარამეტრებს</div>
+    <i class="codestep" data-for="conf" data-lines="7"></i>
+    <div class="callout step" data-with style="--a:var(--asp);font-size:19px"><b>UseSqlServer</b> — SqlServer პაკეტიდან მოდის</div>
+    <div class="callout step" style="--a:var(--api);font-size:19px"><b>@</b> სტრიქონის წინ — VS-ის სტრიქონში <b>\</b> არის</div>
+  </div>
+  <aside class="notes">
+⏱ 0:55 · 3 წთ · ~ VS-ში: DataContext-ში დაწერე override და აირჩიე OnConfiguring
+ახლა დაკოპირებული სტრიქონი DataContext-ში ჩავსვათ.
+→ OnConfiguring
+OnConfiguring — DbContext-ის მეთოდი, რომელსაც override-ით ვცვლით. EF Core მას იძახებს, როცა ბაზასთან კავშირი სჭირდება.
+~ VS-ში დაწერე override, Space — სიიდან აირჩიე OnConfiguring.
+→ UseSqlServer
+UseSqlServer — „გამოიყენე SQL Server“. ეს მეთოდი სწორედ SqlServer პაკეტიდან მოდის. ფრჩხილებში ვსვამთ ჩვენს სტრიქონს.
+→ @
+! სტრიქონის წინ @ აუცილებლად: სერვერის სახელში \ არის, C#-ში კი \ სპეციალური სიმბოლოა.
+~ ჩასმის შემდეგ სტრიქონში ბაზის სახელი (Initial Catalog) ShopDb უნდა იყოს — master-ზე თუ დარჩა, ცხრილი master-ში შეიქმნება.
+~ კონსოლში appsettings.json არ გვაქვს, ამიტომ სტრიქონი პირდაპირ აქ წერია. API-ში მას appsettings.json-ში გადავიტანთ.
+  </aside>
+</section>
+
+<!-- 22. STEP 4a: MIGRATION CONCEPT -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="on">④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 4 / 4 · იდეა</div>
+  <h2>მიგრაცია: ჯერ <span class="c-api">ნახაზი</span>, მერე <span class="c-asp">მშენებლობა</span></h2>
+  <svg viewBox="0 0 1420 440" width="1420" height="440">
+    <g class="in" style="--d:.2s"><rect x="10" y="90" width="300" height="200" rx="20" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/>
+      <text x="160" y="160" text-anchor="middle" font-size="46">📄</text><text x="160" y="212" text-anchor="middle" class="tn b" font-size="22">ჩვენი კოდი</text>
+      <text x="160" y="248" text-anchor="middle" class="tm mono" font-size="16">Product · DataContext</text></g>
+    <g class="step fade draw">
+      <path d="M320 190 H530" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="530,178 550,190 530,202" fill="#2563eb"/>
+      <rect x="350" y="130" width="160" height="40" rx="10" fill="#2563eb"/><text x="430" y="157" text-anchor="middle" class="mono b" font-size="16" style="fill:#fff">Add-Migration</text>
+      <g class="late" style="--ld:.7s"><rect x="560" y="90" width="300" height="200" rx="20" fill="#eaf2fe" stroke="#2563eb" stroke-width="3" stroke-dasharray="10 6"/>
+      <text x="710" y="160" text-anchor="middle" font-size="46">📐</text><text x="710" y="212" text-anchor="middle" class="tb b" font-size="22">ნახაზი</text>
+      <text x="710" y="248" text-anchor="middle" class="tm mono" font-size="16">InitialCreate.cs</text>
+      <text x="710" y="340" text-anchor="middle" class="tm" font-size="18">ბაზას ჯერ არ ეხება!</text></g>
+    </g>
+    <g class="step fade draw">
+      <path d="M870 190 H1080" stroke="#d97706" stroke-width="4" fill="none"/><polygon points="1080,178 1100,190 1080,202" fill="#d97706"/>
+      <rect x="885" y="130" width="180" height="40" rx="10" fill="#d97706"/><text x="975" y="157" text-anchor="middle" class="mono b" font-size="16" style="fill:#fff">Update-Database</text>
+      <g class="late" style="--ld:.7s"><path d="M1120 90 v190 a145 28 0 0 0 290 0 v-190" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="1265" cy="90" rx="145" ry="28" fill="#fef5e4" stroke="#d97706" stroke-width="3"/>
+      <text x="1265" y="175" text-anchor="middle" font-size="46">🏗️</text><text x="1265" y="225" text-anchor="middle" class="to b" font-size="22">ShopDb</text>
+      <text x="1265" y="258" text-anchor="middle" class="tm mono" font-size="16">+ ცხრილი Products</text>
+      <text x="1265" y="360" text-anchor="middle" class="tm" font-size="18">ბაზა ახლა იცვლება</text></g>
+    </g>
+  </svg>
+  <div class="callout step" style="--a:var(--core)">კოდი შეიცვალა? → <b>ახალი მიგრაცია</b> → Update-Database. მიგრაციები — ბაზის <b>ცვლილებების ისტორია</b>, როგორც Git კოდისთვის.</div>
+  <aside class="notes">
+⏱ 1:01 · 2 წთ
+ბოლო ნაბიჯი — მიგრაცია. ჯერ იდეა, მერე ბრძანებები.
+კოდი გვაქვს: Product და DataContext. ბაზა ჯერ არ არსებობს.
+→ Add-Migration
+პირველი ბრძანება — Add-Migration. ის ჩვენს კოდს კითხულობს და წერს ნახაზს: „ბაზაში უნდა შეიქმნას ცხრილი Products, ამ სვეტებით“.
+! ყურადღება: Add-Migration ბაზას არ ეხება! მხოლოდ ფაილს ქმნის პროექტში.
+→ Update-Database
+მეორე — Update-Database. ის იღებს ნახაზს და ააშენებს: ქმნის ბაზას ShopDb და ცხრილს Products.
+→ ისტორია
+ხვალ Product-ს ახალ property-ს დავამატებთ — ახალი მიგრაცია, ისევ Update-Database. მიგრაციები ბაზის ისტორიას ინახავს — ისე, როგორც Git კოდისას.
+  </aside>
+</section>
+
+<!-- 23. STEP 4b: COMMANDS -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="on">④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 4 / 4 · ბრძანებები</div>
+  <h2>ორი ბრძანება Package Manager Console-ში</h2>
+  <div style="display:grid;grid-template-columns:1.35fr 1fr;column-gap:36px;row-gap:0;align-items:start">
+    <div class="term" style="grid-column:1;grid-row:1;border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:0"><div class="bar"><i></i><i></i><i></i><span>Package Manager Console · Default project: ShopDemo</span></div>
+      <div class="body" style="min-height:150px"><div class="step fade"><div class="pm"><span class="typing">Add-Migration InitialCreate</span></div>
+        <div class="out late" style="--ld:1.4s">Build started...<br>Build succeeded.<br>To undo this action, use Remove-Migration.</div></div></div></div>
+    <div class="mock step right" style="grid-column:2;grid-row:1 / span 2">
+      <div class="mh">Solution Explorer</div>
+      <div class="mb tree" style="font-size:17px">
+        <span class="n"><i>📦</i>ShopDemo</span>
+        <span class="n lvl1 hi"><i>📁</i>Migrations <span class="tag" style="--a:var(--mvc);font-size:11px">NEW</span></span>
+        <span class="n lvl2"><i>📄</i>…_InitialCreate.cs</span>
+        <span class="n lvl2"><i>📄</i>…_InitialCreate.Designer.cs</span>
+        <span class="n lvl2"><i>📄</i>DataContextModelSnapshot.cs</span>
+        <span class="n lvl1"><i>📄</i>DataContext.cs</span>
+        <span class="n lvl1"><i>📄</i>Product.cs</span>
+      </div>
+    </div>
+    <div class="term" style="grid-column:1;grid-row:2;border-top:0;border-top-left-radius:0;border-top-right-radius:0">
+      <div class="body" style="min-height:190px;padding-top:0"><div class="step fade"><div class="pm"><span class="typing">Update-Database</span></div>
+        <div class="out late" style="--ld:1s">Build started...<br>Build succeeded.<br>Applying migration '20261022_InitialCreate'.<br><span class="ok">Done.</span></div></div></div></div>
+    <div class="callout step" style="grid-column:2;grid-row:3;--a:var(--muted);font-size:18px;margin-top:16px">CLI-ით: <code class="i">dotnet ef migrations add InitialCreate</code> · <code class="i">dotnet ef database update</code> <span class="tiny">(საჭიროა <code class="i">dotnet tool install -g dotnet-ef</code>)</span></div>
+  </div>
+  <aside class="notes">
+⏱ 1:03 · 4 წთ · ~ VS-ში: Tools → NuGet Package Manager → Package Manager Console
+ბრძანებებს Package Manager Console-ში ვწერთ. ! ზემოთ შეამოწმეთ Default project — ჩვენი პროექტი უნდა ეწეროს.
+→ Add-Migration
+Add-Migration და მიგრაციის სახელი. პირველს ტრადიციულად InitialCreate ჰქვია. სახელი აღწერს, რა შეიცვალა — როგორც commit message.
+ბრძანება ჯერ პროექტს აბილდებს. კოდში შეცდომა თუ გაქვთ — მიგრაცია არ შეიქმნება.
+→ Migrations ფოლდერი
+პროექტში გაჩნდა ფოლდერი Migrations. მთავარი ფაილი InitialCreate.cs — ჩვენი ნახაზი. ბაზა ჯერ ისევ არ არსებობს!
+~ აჩვენე Solution Explorer-ში.
+→ Update-Database
+ახლა Update-Database. Done — ბაზა შეიქმნა!
+→ CLI
+იგივე შეიძლება ტერმინალიდან dotnet ef ბრძანებებით. ამისთვის ერთხელ dotnet-ef ხელსაწყო უნდა დააყენოთ. ჩვენ PMC-ს ვიყენებთ.
+  </aside>
+</section>
+
+<!-- 24. MIGRATION FILE vs SQL -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="on">④ მიგრაცია</span></div>
+  <div class="kicker">ნახაზის შიგნით</div>
+  <h2>მიგრაცია = <span class="c-asp">CREATE TABLE</span>, ოღონდ C#-ში</h2>
+  <div class="grid2" style="grid-template-columns:1.35fr 1fr;align-items:start">
+    <code-block lang="csharp" cls="xs" title="Migrations/…_InitialCreate.cs · Up()">
+migrationBuilder.CreateTable(
+    name: "Products",
+    columns: table => new
+    {
+        Id = table.Column<int>(type: "int", nullable: false)
+            .Annotation("SqlServer:Identity", "1, 1"),
+        Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+        Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
+    },
+    constraints: table =>
+    {
+        table.PrimaryKey("PK_Products", x => x.Id);
+    });
+    </code-block>
+    <div class="col step right">
+      <code-block lang="sql" cls="sm" title="რაც ჩვენ SSMS-ში დავწერდით">
+CREATE TABLE Products (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    Name NVARCHAR(MAX) NOT NULL,
+    Price DECIMAL(18,2) NOT NULL
+);
+      </code-block>
+      <div class="solve">იგივეა! უბრალოდ <b>EF Core-მა დაწერა</b></div>
+    </div>
+  </div>
+  <div class="callout step mt" style="--a:var(--core)">ფაილში ასევე არის <b>Down()</b> — მიგრაციის უკან დაბრუნება: <code class="i">DropTable("Products")</code></div>
+  <aside class="notes">
+⏱ 1:07 · 2 წთ · ~ VS-ში გახსენი InitialCreate.cs
+შევიხედოთ ნახაზში. ერთი შეხედვით უცნაურია, მაგრამ...
+→ SQL შედარება
+...მარჯვნივ ის, რასაც ჩვენ ხელით დავწერდით SSMS-ში. ? შეადარეთ: Products, Id IDENTITY, Name nvarchar, Price decimal, Primary Key. ! იგივეა.
+→ Down
+ფაილში არის ორი მეთოდი: Up — რა გავაკეთოთ, Down — როგორ დავაბრუნოთ უკან. Down ცხრილს წაშლის.
+~ მიგრაციის ფაილს ხელით არ ვასწორებთ, თუ ზუსტად არ ვიცით, რას ვაკეთებთ.
+  </aside>
+</section>
+
+<!-- 25. RESULT IN SSMS -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="done">④ ✓</span></div>
+  <div class="kicker">შედეგი</div>
+  <h2>ვამოწმებთ <span class="c-asp">SSMS</span>-ში 🎉</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1fr;align-items:start">
+    <div class="mock"><div class="mh">SSMS · Object Explorer</div>
+      <div class="mb tree">
+        <span class="n"><i>🖥️</i>localhost</span>
+        <span class="n lvl1"><i>📁</i>Databases</span>
+        <span class="n lvl2 hi step fade"><i>🗄️</i>ShopDb <span class="tag" style="--a:var(--mvc);font-size:11px">NEW</span></span>
+        <span class="n lvl3 step fade"><i>📁</i>Tables</span>
+        <span class="n lvl4 step fade" data-with><i>▦</i>dbo.__EFMigrationsHistory</span>
+        <span class="n lvl4 hi step fade" data-with><i>▦</i>dbo.Products</span>
+        <span class="n lvl4 step fade" style="padding-left:150px;font-size:17px">🔑 Id (PK, int, not null)</span>
+        <span class="n step fade" data-with style="padding-left:150px;font-size:17px">Name (nvarchar(max), not null)</span>
+        <span class="n step fade" data-with style="padding-left:150px;font-size:17px">Price (decimal(18,2), not null)</span>
+      </div></div>
+    <div class="col step right" style="gap:16px">
+      <div class="card accent" style="--a:var(--core)"><h3 class="mono" style="font-size:22px">__EFMigrationsHistory</h3><p>EF Core-ის <b>„დღიური“</b>: რომელი მიგრაციები უკვე გაეშვა ამ ბაზაზე</p></div>
+      <table class="t" style="font-size:16px"><tr><th>MigrationId</th><th>ProductVersion</th></tr><tr><td class="mono" style="font-weight:400">20261022…_InitialCreate</td><td class="mono">10.0.x</td></tr></table>
+    </div>
+  </div>
+  <aside class="notes">
+⏱ 1:09 · 2 წთ · ~ SSMS-ში: Databases → Refresh
+ახლა SSMS-ში ვნახოთ, რა მოხდა. Databases-ზე Refresh.
+→ ShopDb
+! აი, ჩვენი ბაზა ShopDb. ჩვენ ის არ შეგვიქმნია — ჩვენმა C#-მა შექმნა.
+→ ცხრილები
+Tables-ში ორი ცხრილია. Products — ჩვენი. და __EFMigrationsHistory — EF-ის.
+→ სვეტები
+Products-ის სვეტები ზუსტად ჩვენი კლასის property-ებია: Id — Primary Key, Name, Price.
+→ დღიური
+__EFMigrationsHistory — EF Core-ის დღიური. აქ წერია, რომელი მიგრაციები გაეშვა. მომავალში Update-Database-ს ამ ცხრილით ესმის, რა არის ახალი და რა — უკვე შესრულებული.
+  </aside>
+</section>
+
+<!-- 26. PAYOFF: USE IT -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="kicker">ჯილდო</div>
+  <h2>ახლა გამოვიყენოთ — <span class="c-core">Program.cs</span></h2>
+  <div class="grid2" style="grid-template-columns:1.3fr 1fr;align-items:start">
+    <code-block id="prg" lang="csharp" cls="sm" title="Program.cs">
+using ShopDemo;
+
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+using var db = new DataContext();
+
+db.Products.Add(new Product { Name = "ლეპტოპი", Price = 2400 });
+db.Products.Add(new Product { Name = "მაუსი", Price = 45 });
+db.SaveChanges();
+
+foreach (var p in db.Products.ToList())
+    Console.WriteLine($"{p.Id}. {p.Name} — {p.Price} ₾");
+    </code-block>
+    <div class="col" style="gap:14px">
+      <i class="codestep" data-for="prg" data-lines="5"></i>
+      <div class="callout step" data-with style="--a:var(--core);font-size:19px"><b>new DataContext()</b> — ვიღებთ „პულტს“</div>
+      <i class="codestep" data-for="prg" data-lines="7-8"></i>
+      <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>Add</b> — ჯერ მხოლოდ მეხსიერებაში</div>
+      <i class="codestep" data-for="prg" data-lines="9"></i>
+      <div class="callout step" data-with style="--a:var(--asp);font-size:19px"><b>SaveChanges()</b> — ახლა მიდის <b>INSERT</b> ბაზაში</div>
+      <i class="codestep" data-for="prg" data-lines="11-12"></i>
+      <div class="term step" data-with><div class="bar"><i></i><i></i><i></i><span>ShopDemo</span></div><div class="body">1. ლეპტოპი — 2400 ₾<br>2. მაუსი — 45 ₾</div></div>
+      <i class="codestep" data-for="prg" data-lines="3"></i>
+      <div class="callout step" data-with style="--a:var(--muted);font-size:17px">ქართული კონსოლში <b>???</b>-ად ჩანს? → ეს ხაზი</div>
+    </div>
+  </div>
+  <aside class="notes">
+⏱ 1:11 · 4 წთ · ~ VS-ში: Program.cs, F5, შემდეგ SSMS-ში SELECT * FROM Products
+ოთხივე ნაბიჯი გავიარეთ. ახლა ჯილდო: ჩვენი C# ბაზაში წერს და ბაზიდან კითხულობს.
+→ DataContext
+ვქმნით DataContext-ს — ვიღებთ „პულტს“. using იმიტომ, რომ ბოლოს კავშირი თავისით დაიხუროს.
+→ Add
+Add — ჩვეულებრივი C#-ის ობიექტებს ვამატებთ. SQL არსად. ! ჯერ ბაზაში არაფერი წასულა.
+→ SaveChanges
+! SaveChanges — მხოლოდ ახლა აგზავნის EF Core INSERT-ებს. დაგავიწყდათ SaveChanges — ბაზაში არაფერი ჩაიწერება. ყველაზე ხშირი შეცდომაა.
+→ წაკითხვა
+ToList — SELECT. ბეჭდავს ორივე პროდუქტს. შეამჩნიეთ: Id-ები ჩვენ არ მიგვიცია — ბაზამ IDENTITY-თი მისცა.
+→ ქართული შრიფტი
+Windows-ის კონსოლში ქართული შეიძლება კითხვის ნიშნებად ჩანდეს — ამიტომ პირველ ხაზში OutputEncoding.
+~ SSMS-ში გაუშვი SELECT * FROM Products — ჩანაწერები იქ არიან.
+  </aside>
+</section>
+
+<!-- 27. RECAP 4 STEPS -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="kicker">შეჯამება</div>
+  <h2>4 ნაბიჯი — ყოველ ახალ პროექტში</h2>
+  <div class="grid4" style="margin-top:20px">
+    <div class="card accent step zoom" style="--a:var(--core);text-align:center"><div class="verb" style="--a:var(--core)">1</div><h3 style="justify-content:center">პაკეტები</h3><p class="small">EF Core · SqlServer · Tools · Design</p></div>
+    <div class="card accent step zoom" style="--a:var(--net);text-align:center"><div class="verb" style="--a:var(--net)">2</div><h3 style="justify-content:center">DataContext</h3><p class="small">Entity + DbContext + DbSet</p></div>
+    <div class="card accent step zoom" style="--a:var(--api);text-align:center"><div class="verb" style="--a:var(--api)">3</div><h3 style="justify-content:center">Connection</h3><p class="small">სტრიქონი VS-დან → UseSqlServer</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp);text-align:center"><div class="verb" style="--a:var(--asp)">4</div><h3 style="justify-content:center">მიგრაცია</h3><p class="small">Add-Migration + Update-Database</p></div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--mvc);font-size:26px;text-align:center;border-left:0;border-radius:16px;padding:22px">შემდეგ ყოველ ცვლილებაზე: <b>შეცვალე კლასი → Add-Migration → Update-Database</b></div>
+  <aside class="notes">
+⏱ 1:15 · 2 წთ
+შევაჯამოთ. ? ვინ მეტყვის ზეპირად ოთხ ნაბიჯს? — ჯერ კითხე, მერე → თითოეულზე.
+→ 1 პაკეტები
+→ 2 DataContext
+→ 3 Connection String
+→ 4 მიგრაცია
+→ შემდგომი ცვლილებები
+! ეს ოთხი ნაბიჯი პროექტში ერთხელ კეთდება. შემდეგ ყოველ ცვლილებაზე მხოლოდ ბოლო ნაბიჯი მეორდება: კლასი შეცვალე → Add-Migration → Update-Database.
+  </aside>
+</section>
+
+<!-- ============ PART 5: PRACTICE ============ -->
+<section class="slide divider" data-section="5 · პრაქტიკა">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 5</div>
+    <h1 class="in" style="--d:.1s">ახლა <span class="grad">თქვენი ჯერია</span></h1>
+    <p class="lead mt in" style="--d:.3s">ორ რაუნდად: ჯერ ერთად, მერე დამოუკიდებლად</p>
+  </div>
+  <div class="big-num">05</div>
+  <aside class="notes">
+⏱ 1:17
+პირველი რაუნდი — „მე ვაკეთებ“ — უკვე გავიარეთ. ახლა დანარჩენი ორი.
+  </aside>
+</section>
+
+<!-- 28. I DO / WE DO / YOU DO -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">სამი რაუნდი</div>
+  <h2>მე → ერთად → თქვენ</h2>
+  <div class="grid3" style="margin-top:20px">
+    <div class="card accent phase in" style="--a:var(--muted);--d:.2s;opacity:.65"><div class="em">👨‍🏫</div><h3 style="justify-content:center">მე ვაკეთებ</h3><p class="small">თქვენ უყურებთ და იგებთ</p><p class="tt mt" style="margin-top:12px">ShopDemo · ✓ დასრულდა</p></div>
+    <div class="card accent phase step zoom" style="--a:var(--api)"><div class="em">👥</div><h3 style="justify-content:center">ერთად ვაკეთებთ</h3><p class="small">ნაბიჯ-ნაბიჯ, ერთ ტემპში</p><p class="tt mt" style="margin-top:12px">LibraryDemo · ~17 წთ</p></div>
+    <div class="card accent phase step zoom" style="--a:var(--mvc)"><div class="em">🧑‍💻</div><h3 style="justify-content:center">თქვენ აკეთებთ</h3><p class="small">დამოუკიდებლად, მე ვეხმარები</p><p class="tt mt" style="margin-top:12px">SchoolDemo · ~15 წთ</p></div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--asp)">წესი: <b>ჯერ ცდი თვითონ</b>, გაჭედე — გვერდით მჯდომს ჰკითხე, მერე — მე. შეცდომა ნორმალურია 🙂</div>
+  <aside class="notes">
+⏱ 1:17 · 1 წთ
+პრაქტიკა სამ რაუნდადაა. პირველი გავიარეთ: მე გავაკეთე ShopDemo, თქვენ უყურეთ.
+→ ერთად
+მეორე: ერთად ვაკეთებთ ახალ პროექტს — ბიბლიოთეკას. მე ერთ ნაბიჯს ვაკეთებ, თქვენც იმავეს — და ერთად გადავდივართ შემდეგზე.
+→ თქვენ
+მესამე: თქვენ დამოუკიდებლად — სკოლის პროექტი. მე ოთახში დავდივარ და ვეხმარები.
+→ წესი
+! შეცდომა ნორმალურია. სწორედ შეცდომებიდან სწავლობთ ყველაზე მეტს.
+  </aside>
+</section>
+
+<!-- 29. WE DO -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">👥 ერთად ვაკეთებთ</div>
+  <h2>LibraryDemo — ბიბლიოთეკა</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1.1fr;align-items:start">
+    <div class="col">
+      <code-block lang="csharp" cls="sm" title="Book.cs">
+public class Book
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public int Year { get; set; }
+}
+      </code-block>
+      <div class="callout" style="--a:var(--asp);font-size:19px">ბაზა: <b>LibraryDb</b> · ცხრილი: <b>Books</b></div>
+    </div>
+    <ul class="check" style="margin-top:0">
+      <li class="step">ახალი Console App: <b>LibraryDemo</b> (.NET 10)</li>
+      <li class="step">① 4 პაკეტი: EF Core · <code class="i">.SqlServer</code> · <code class="i">.Tools</code> · <code class="i">.Design</code></li>
+      <li class="step">② <code class="i">Book.cs</code> და <code class="i">DataContext.cs</code> + <code class="i">DbSet&lt;Book&gt; Books</code></li>
+      <li class="step">③ <code class="i">OnConfiguring</code> + სტრიქონი VS-დან (ბაზა: <b>LibraryDb</b>)</li>
+      <li class="step">④ <code class="i">Add-Migration InitialCreate</code> → <code class="i">Update-Database</code></li>
+      <li class="step">SSMS: ჩანს <b>LibraryDb → Books</b></li>
+      <li class="step">Program.cs: 2 წიგნი → <code class="i">SaveChanges</code> → დაბეჭდე</li>
+    </ul>
+  </div>
+  <aside class="notes">
+⏱ 1:18 · 17 წთ · ~ ყოველ ნაბიჯზე: შენ აკეთებ ეკრანზე → ელოდები, სანამ ყველას ექნება → → ნიშანს უსვამ
+ახლა ერთად. ბიბლიოთეკის პროექტი: ცხრილი Books — Id, Title, Author, Year. ყოველ ნაბიჯს ერთად ვაკეთებთ და ნიშანს ვუსვამთ.
+→ პროექტი
+ყველამ შექმენით Console App LibraryDemo. ~ დაელოდე, სანამ ყველას ექნება.
+→ პაკეტები
+პირველი ნაბიჯი: პაკეტები. ? რომელი ოთხი? (EF Core, SqlServer, Tools, Design.)
+→ DataContext
+მეორე: ჯერ Book კლასი, მერე DataContext DbSet-ით. ? DbSet-ის სახელი როგორი იქნება? (Books — ცხრილის სახელი.)
+→ Connection
+მესამე: OnConfiguring და VS-დან დაკოპირებული სტრიქონი. ! ბაზის სახელი — LibraryDb.
+→ მიგრაცია
+მეოთხე: Add-Migration InitialCreate, მერე Update-Database. ~ აქ ყველაზე მეტი შეცდომა იქნება — შემდეგი ცხრილი ხშირ შეცდომებს აქვს, საჭიროებისამებრ აჩვენე.
+→ SSMS
+შეამოწმეთ SSMS-ში: Refresh → LibraryDb → Books.
+→ Program.cs
+ბოლოს Program.cs: დაამატეთ ორი წიგნი, SaveChanges, დაბეჭდეთ. ! ვისაც ჩანს — ხელი ასწიეთ 🙌
+  </aside>
+</section>
+
+<!-- 30. YOU DO -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">🧑‍💻 თქვენ აკეთებთ · ~15 წთ</div>
+  <h2>SchoolDemo — დამოუკიდებლად</h2>
+  <div class="grid2" style="align-items:start">
+    <div class="card accent step left" style="--a:var(--mvc)">
+      <h3><span class="ico">📝</span>დავალება</h3>
+      <ul class="clean small">
+        <li>პროექტი <b>SchoolDemo</b>, ბაზა <b>SchoolDb</b></li>
+        <li>Entity <code class="i">Student</code>: Id, FirstName, LastName, Age</li>
+        <li>4 ნაბიჯი — <b>სლაიდების გარეშე</b> 💪</li>
+        <li>Program.cs: დაამატე <b>3 სტუდენტი</b> და დაბეჭდე</li>
+      </ul>
+      <p class="tiny mt" style="margin-top:14px">✓ მზადაა, როცა SSMS-ში ჩანს SchoolDb → Students და კონსოლი 3 სტუდენტს ბეჭდავს</p>
+    </div>
+    <div class="card accent step right" style="--a:var(--asp)">
+      <h3><span class="ico">⭐</span>ბონუსი — ვინც ადრე მორჩება</h3>
+      <ul class="clean small">
+        <li>დაამატე Entity <code class="i">Course</code>: Id, Title, Credits</li>
+        <li>DataContext-ში: <code class="i">DbSet&lt;Course&gt; Courses</code></li>
+        <li><code class="i">Add-Migration AddCourses</code> → <code class="i">Update-Database</code></li>
+        <li>SSMS: ახალი ცხრილი + <b>2 ჩანაწერი</b> __EFMigrationsHistory-ში</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout step mt" style="--a:var(--api)">გაჭედე? → შემდეგი სლაიდი: <b>ხშირი შეცდომები</b> და მათი გამოსწორება</div>
+  <aside class="notes">
+⏱ 1:35 · 15 წთ · ~ ეს სლაიდი ეკრანზე დატოვე და ოთახში იარე
+ახლა თქვენ. სლაიდებს არ გიჩვენებთ — ოთხი ნაბიჯი თქვენით.
+→ დავალება
+SchoolDemo: სტუდენტი — სახელი, გვარი, ასაკი. ბოლოს სამი სტუდენტი ბაზაში და კონსოლში.
+→ ბონუსი
+ვინც ადრე მორჩება: მეორე ცხრილი Course და მეორე მიგრაცია. ! აქ ნახავთ, როგორ ცხოვრობს მიგრაციების ისტორია: __EFMigrationsHistory-ში ორი ჩანაწერი იქნება.
+→ შეცდომები
+თუ გაჭედეთ — შემდეგ სლაიდზე ყველაზე ხშირი შეცდომებია.
+~ 10 წუთის შემდეგ შეგიძლია შეცდომების სლაიდი გამოიტანო.
+  </aside>
+</section>
+
+<!-- 31. COMMON ERRORS -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">გაჭედე?</div>
+  <h2>ხშირი შეცდომები</h2>
+  <table class="t" style="font-size:18px">
+    <tr><th style="width:38%">შეცდომა</th><th style="width:31%">მიზეზი</th><th>გამოსწორება</th></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">The term 'Add-Migration' is not recognized</td><td>Tools / Design პაკეტი აკლია</td><td>დააყენე <code class="i">.Tools</code> + <code class="i">.Design</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">No DbContext was found in assembly</td><td>PMC-ში სხვა პროექტია არჩეული</td><td>შეცვალე <b>Default project</b></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">The certificate chain was issued by an authority that is not trusted</td><td>SSL სერტიფიკატი</td><td>სტრიქონში: <code class="i">Trust Server Certificate=True</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">A network-related or instance-specific error…</td><td>სერვერის სახელი არასწორია</td><td>ხელახლა დააკოპირე VS-დან · წინ <code class="i">@</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">The entity type 'Book' requires a primary key</td><td>Id property არ არის</td><td>დაამატე <code class="i">public int Id { get; set; }</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">ბაზაში ცარიელია, შეცდომა არ არის</td><td>დაგავიწყდა SaveChanges</td><td><code class="i">db.SaveChanges();</code></td></tr>
+  </table>
+  <p class="tiny mt step fade" style="margin-top:16px">⚠ ყვითელი warning decimal-ზე („No store type was specified…“) — შეცდომა არ არის. მიგრაცია მაინც შეიქმნება, decimal(18,2)-ით.</p>
+  <aside class="notes">
+⏱ საჭიროებისამებრ · ~ იყენებ „ერთად“ და „თქვენ“ რაუნდებში
+ყველაზე ხშირი შეცდომები — ერთად ან ცალ-ცალკე, საჭიროებისამებრ.
+→ Add-Migration not recognized
+Add-Migration-ს ვერ ცნობს — Tools (ან Design) პაკეტი არ დაგიყენებიათ.
+→ No DbContext
+No DbContext was found — PMC-ის ზემოთ Default project-ში სხვა პროექტია.
+→ certificate
+სერტიფიკატის შეცდომა — სტრიქონში Trust Server Certificate უნდა იყოს True.
+→ network-related error
+ბაზას ვერ პოულობს — სტრიქონი არასწორადაა დაკოპირებული, ან @ დაგავიწყდათ.
+→ primary key
+requires a primary key — კლასს Id property არ აქვს, ან სახელი შეეშალა.
+→ SaveChanges
+შეცდომა არ არის, მაგრამ ბაზა ცარიელია — SaveChanges დაგავიწყდათ.
+→ decimal warning
+decimal-ზე ყვითელი გაფრთხილება — უბრალოდ გვეუბნება, რომ ზომას თვითონ ირჩევს. ეს შეცდომა არ არის.
+  </aside>
+</section>
+
+<!-- 32. QUIZ -->
+<section class="slide" data-section="შეჯამება">
+  <div class="kicker">შევამოწმოთ</div>
+  <h2>5 კითხვა</h2>
+  <div class="qa"><span class="n">1</span><span class="q">რა არის ORM და რას ნიშნავს მისი სამი ასო?</span><span class="a step">თარჯიმანი ობიექტებსა და ცხრილებს შორის · Object · Relational · Mapping</span></div>
+  <div class="qa"><span class="n">2</span><span class="q">რა შეესაბამება ბაზაში კლასს, property-ს და ობიექტს?</span><span class="a step">ცხრილი · სვეტი · ჩანაწერი</span></div>
+  <div class="qa"><span class="n">3</span><span class="q">რომელი 4 პაკეტი დავაყენეთ?</span><span class="a step">EF Core — ძრავი · .SqlServer — SQL Server · .Tools — VS-ის ბრძანებები · .Design — მიგრაციის გენერაცია</span></div>
+  <div class="qa"><span class="n">4</span><span class="q">რით განსხვავდება Add-Migration და Update-Database?</span><span class="a step">Add-Migration წერს ნახაზს (ფაილს) · Update-Database ცვლის ბაზას</span></div>
+  <div class="qa"><span class="n">5</span><span class="q">Add() გამოვიძახეთ, ბაზა კი ცარიელია. რატომ?</span><span class="a step">SaveChanges() არ გამოგვიძახებია</span></div>
+  <aside class="notes">
+⏱ 1:50 · 6 წთ · ~ კითხვა ხმამაღლა, დაელოდე პასუხს აუდიტორიიდან, მერე → პასუხის გამოსაჩენად
+? 1. რა არის ORM?
+→ პასუხი 1
+? 2. რა შეესაბამება ბაზაში კლასს, property-ს, ობიექტს?
+→ პასუხი 2
+? 3. რომელი ოთხი პაკეტი დავაყენეთ?
+→ პასუხი 3
+? 4. Add-Migration vs Update-Database?
+→ პასუხი 4
+? 5. რატომაა ბაზა ცარიელი?
+→ პასუხი 5
+  </aside>
+</section>
+
+<!-- 33. FINAL -->
+<section class="slide" data-section="შეჯამება">
+  <div class="vcenter" style="max-width:1000px">
+    <div class="kicker in" style="color:var(--core)">დღეს</div>
+    <h1 class="in" style="--d:.1s;font-size:66px">C# და ბაზა<br><span class="grad">ახლა ერთმანეთს იცნობენ</span> 🤝</h1>
+    <div class="grid2 mt2">
+      <div class="card accent step" style="--a:var(--mvc)"><h3><span class="ico">🏠</span>საშინაო</h3><p class="small">SchoolDemo-ს ბონუსი, თუ ვერ მოასწარით: <b>Course</b> + მეორე მიგრაცია + 2 ჩანაწერი</p></div>
+      <div class="card accent step" style="--a:var(--api)"><h3><span class="ico">⏭️</span>შემდეგ ლექციაზე</h3><p class="small">CRUD სრულად: წაკითხვა, განახლება, წაშლა · ცხრილებს შორის <b>კავშირები</b></p></div>
+    </div>
+  </div>
+  <div class="abs in" style="--d:.4s;right:110px;top:110px">
+    <svg viewBox="0 0 300 160" width="300" height="160">
+      <rect x="0" y="40" width="90" height="80" rx="16" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/><text x="45" y="92" text-anchor="middle" class="tn b" font-size="30">C#</text>
+      <path id="br2" d="M90 80 C 130 20, 170 20, 210 80" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <circle r="7" fill="#6d28d9"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#br2"/></animateMotion></circle>
+      <path d="M210 50 v60 a45 12 0 0 0 90 0 v-60" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="255" cy="50" rx="45" ry="12" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><text x="255" y="98" text-anchor="middle" font-size="26">🗄️</text>
+    </svg>
+  </div>
+  <aside class="notes">
+⏱ 1:56 · 4 წთ
+დღეს ორი სამყარო დავაკავშირეთ: C# და ბაზა. ORM-ის იდეა გაიგეთ, EF Core-ით პროექტი ოთხ ნაბიჯში მოამზადეთ და თქვენი ხელით ბაზა შექმენით.
+→ საშინაო
+საშინაო: ვინც ბონუსი ვერ მოასწრო — სახლში: Course და მეორე მიგრაცია.
+→ შემდეგ
+შემდეგ ლექციაზე — CRUD სრულად და ცხრილებს შორის კავშირები: მაგალითად, ერთ კატეგორიას ბევრი პროდუქტი.
+მადლობა! კითხვები?
+  </aside>
+</section>

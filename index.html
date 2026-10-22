@@ -1,0 +1,1346 @@
+<!doctype html>
+<html lang="ka"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EF Core კონსოლში — ORM, DataContext, მიგრაცია</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>:root{
+  --bg:#0a0c16; --bg2:#11142a; --bg3:#171b36; --card:#151935; --line:#272c52; --line2:#353b6b;
+  --ink:#eceefb; --ink2:#c3c7e6; --muted:#8a90b8;
+  --net:#8b6cff; --net2:#512bd4;
+  --asp:#f5a524; --wf:#3b82f6; --mvc:#22c55e; --core:#a78bfa; --api:#22d3ee; --red:#f43f5e; --pink:#ec4899; --yel:#facc15;
+  --font:"Noto Sans Georgian","FiraGO","BPG Arial","Sylfaen","DejaVu Sans",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code","Fira Code",ui-monospace,"DejaVu Sans Mono",monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);overflow:hidden}
+body{font-family:var(--font);color:var(--ink);-webkit-font-smoothing:antialiased}
+
+/* ---------- stage ---------- */
+#stage{position:fixed;inset:0;overflow:hidden;background:var(--bg)}
+#deck{position:absolute;left:50%;top:50%;width:1600px;height:var(--h,900px);transform:translate(-50%,-50%) scale(var(--s,1));transform-origin:center;
+  background:radial-gradient(1200px 700px at 85% -10%,rgba(139,108,255,.16),transparent 60%),
+             radial-gradient(900px 600px at -10% 110%,rgba(34,211,238,.08),transparent 60%),var(--bg);
+  overflow:hidden}
+#deck::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:40px 40px;mask-image:radial-gradient(ellipse at center,#000 30%,transparent 80%)}
+
+.slide{position:absolute;inset:0;padding:calc(70px + (var(--h,900px) - 900px) / 2) 90px calc(80px + (var(--h,900px) - 900px) / 2);opacity:0;visibility:hidden;
+  transform:translateX(40px) scale(.985);transition:opacity .55s var(--ease),transform .65s var(--ease),visibility 0s .6s}
+.slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .55s var(--ease),transform .65s var(--ease),visibility 0s}
+.slide.past{transform:translateX(-40px) scale(.985)}
+
+/* chrome */
+#hud{position:absolute;left:0;right:0;bottom:0;height:56px;display:flex;align-items:center;gap:18px;padding:0 90px;
+  color:var(--muted);font-size:15px;z-index:20;pointer-events:none}
+#hud .sec{letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--core)}
+#hud .num{margin-left:auto;font-family:var(--mono);font-size:14px}
+#hud .dots{font-family:var(--mono);font-size:13px;color:var(--line2);letter-spacing:2px}
+#hud .dots b{color:var(--api);font-weight:400}
+#bar{position:absolute;left:0;bottom:0;height:4px;background:linear-gradient(90deg,var(--net),var(--api));width:0;transition:width .5s var(--ease);z-index:21}
+#notes{position:fixed;left:0;right:0;bottom:0;max-height:34vh;overflow:auto;background:rgba(10,12,22,.97);border-top:2px solid var(--net);
+  color:var(--ink2);font-size:17px;line-height:1.6;padding:16px 28px;transform:translateY(100%);transition:transform .3s var(--ease);z-index:50}
+#notes.open{transform:none}
+#notes h6{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--net);margin-bottom:6px}
+#help{position:fixed;right:16px;top:12px;color:#8a90b8;font:12px var(--mono);z-index:40;opacity:.8;transition:opacity 1s;pointer-events:none}
+#help.hide{opacity:0}
+#overview{position:fixed;inset:0;background:rgba(5,6,12,.96);z-index:60;display:none;overflow:auto;padding:30px;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+#overview.open{display:grid}
+#overview button{all:unset;cursor:pointer;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px;color:var(--ink2);font-size:14px;line-height:1.35;min-height:84px}
+#overview button:hover,#overview button.cur{border-color:var(--net);color:#fff}
+#overview button small{display:block;color:var(--muted);font:12px var(--mono);margin-bottom:6px}
+
+/* ---------- typography ---------- */
+.kicker{font:600 15px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--api);margin-bottom:14px}
+h1{font-size:76px;line-height:1.08;font-weight:800;letter-spacing:-.01em}
+h2{font-size:50px;line-height:1.15;font-weight:800;margin-bottom:30px}
+h3{font-size:28px;font-weight:700;margin-bottom:12px}
+p,li{font-size:25px;line-height:1.55;color:var(--ink2)}
+.lead{font-size:30px;line-height:1.5;color:var(--ink2);max-width:1250px}
+.small{font-size:19px} .tiny{font-size:15px;color:var(--muted)}
+.muted{color:var(--muted)}
+b,strong{color:var(--ink);font-weight:700}
+.grad{background:linear-gradient(90deg,var(--net),var(--api));-webkit-background-clip:text;background-clip:text;color:transparent}
+code.i{font-family:var(--mono);font-size:.86em;background:rgba(139,108,255,.14);color:#d8ccff;padding:2px 8px;border-radius:6px}
+ul.clean{list-style:none} ul.clean li{position:relative;padding-left:34px;margin:10px 0}
+ul.clean li::before{content:"";position:absolute;left:4px;top:.62em;width:12px;height:12px;border-radius:3px;background:var(--net);transform:rotate(45deg)}
+.c-asp{color:var(--asp)} .c-wf{color:var(--wf)} .c-mvc{color:var(--mvc)} .c-core{color:var(--core)} .c-api{color:var(--api)} .c-red{color:var(--red)} .c-net{color:var(--net)} .c-yel{color:var(--yel)} .c-pink{color:var(--pink)}
+
+/* ---------- layout ---------- */
+.row{display:flex;gap:36px} .col{display:flex;flex-direction:column;gap:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:36px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:26px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;height:100%}
+.vcenter{display:flex;flex-direction:column;justify-content:center;height:100%}
+.f1{flex:1} .mt{margin-top:28px} .mt2{margin-top:50px} .mb{margin-bottom:24px}
+.abs{position:absolute}
+
+.card{background:linear-gradient(180deg,var(--card),rgba(21,25,53,.6));border:1px solid var(--line);border-radius:18px;padding:26px 28px;position:relative}
+.card h3{display:flex;align-items:center;gap:12px}
+.card p,.card li{font-size:21px}
+.card.accent{border-color:color-mix(in srgb,var(--a,var(--net)) 55%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--a,var(--net)) 20%,transparent),0 20px 60px -30px var(--a,var(--net))}
+.card .ico{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:24px;background:color-mix(in srgb,var(--a,var(--net)) 18%,transparent);color:var(--a,var(--net));flex:none}
+.pill{display:inline-flex;align-items:center;gap:8px;font:600 15px var(--mono);padding:6px 14px;border-radius:99px;border:1px solid var(--line2);color:var(--ink2);background:var(--bg2)}
+.pill.on{border-color:var(--a,var(--net));color:var(--a,var(--net));background:color-mix(in srgb,var(--a,var(--net)) 12%,transparent)}
+.tag{font:700 13px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:6px;background:color-mix(in srgb,var(--a,var(--net)) 20%,transparent);color:var(--a,var(--net))}
+.good{--a:var(--mvc)} .bad{--a:var(--red)} .warn{--a:var(--asp)}
+.pro li::before{background:var(--mvc)!important} .con li::before{background:var(--red)!important}
+
+table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:20px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+table.t th,table.t td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--line);color:var(--ink2);vertical-align:top}
+table.t th{background:var(--bg3);color:var(--ink);font-size:17px;letter-spacing:.03em}
+table.t tr:last-child td{border-bottom:0}
+table.t td:first-child{color:var(--ink);font-weight:700}
+
+/* ---------- code ---------- */
+.code{position:relative;background:#0d1024;border:1px solid var(--line);border-radius:14px;padding:20px 0 20px;font:17.5px/1.62 var(--mono);color:#d6dbff;overflow:hidden}
+.code .ttl{position:absolute;top:0;right:0;font:12px var(--mono);color:var(--muted);padding:6px 14px;background:var(--bg3);border-bottom-left-radius:10px;letter-spacing:.06em}
+.code .ln{display:block;padding:0 24px;white-space:pre;transition:opacity .35s,background .35s}
+.code .ln.hl{background:rgba(139,108,255,.14);box-shadow:inset 3px 0 0 var(--net)}
+.code .ln.dim{opacity:.28}
+.code.big{font-size:20px}
+.code.sm{font-size:15.5px;line-height:1.55}
+.code.xs{font-size:14px;line-height:1.5}
+/* pygments tokens */
+.code .k,.code .kd,.code .kn,.code .kr,.code .kc{color:#c792ea}
+.code .kt{color:#82aaff}
+.code .s,.code .s1,.code .s2,.code .sa,.code .se,.code .si,.code .sd{color:#c3e88d}
+.code .c,.code .c1,.code .cm,.code .cp,.code .ch{color:#6b7299;font-style:italic}
+.code .m,.code .mi,.code .mf,.code .mh{color:#f78c6c}
+.code .nf,.code .fm{color:#82aaff}
+.code .nc,.code .nn,.code .nt{color:#ffcb6b}
+.code .na{color:#c792ea} .code .nb{color:#89ddff}
+.code .o,.code .p{color:#89ddff}
+.code .nv,.code .nx{color:#d6dbff}
+.code .err{color:inherit;background:none}
+.code .gp{color:var(--mvc)} .code .go{color:#9aa0c3}
+.code .nd{color:#ffcb6b}
+.code .asp-delim{color:#f5a524;font-weight:700;background:rgba(245,165,36,.12)}
+
+/* terminal */
+.term{background:#07080f;border:1px solid var(--line);border-radius:14px;overflow:hidden;font:20px/1.7 var(--mono)}
+.term .bar{height:36px;background:#141729;display:flex;align-items:center;gap:8px;padding:0 14px}
+.term .bar i{width:12px;height:12px;border-radius:50%;background:#ff5f57}.term .bar i:nth-child(2){background:#febc2e}.term .bar i:nth-child(3){background:#28c840}
+.term .bar span{margin-left:12px;color:var(--muted);font-size:13px}
+.term .body{padding:18px 22px;color:#cfd3f0}
+.term .cmd::before{content:"$ ";color:var(--mvc)}
+.term .out{color:var(--muted)}
+.typing{display:inline-block;overflow:hidden;white-space:nowrap;vertical-align:bottom;width:0;border-right:2px solid transparent}
+.shown .typing,.typing.shown{animation:type var(--t,1.4s) steps(var(--n,30)) forwards,caret .8s step-end 3}
+@keyframes type{to{width:calc(var(--n,30) * 1ch)}}
+@keyframes caret{50%{border-color:var(--api)}}
+
+/* ---------- steps & animations ---------- */
+.step{opacity:0;transform:translateY(22px);transition:opacity .5s var(--ease),transform .6s var(--ease),filter .5s}
+.step.shown{opacity:1;transform:none}
+.step.fade{transform:none}
+.step.left{transform:translateX(-40px)} .step.right{transform:translateX(40px)}
+.step.zoom{transform:scale(.8)} .step.drop{transform:translateY(-40px)}
+.step.left.shown,.step.right.shown,.step.zoom.shown,.step.drop.shown{transform:none}
+svg .step{transform:none;transform-box:fill-box}
+.trigger{}
+.gone-after.shown{} /* hook */
+.dim-on.shown{opacity:.25!important}
+
+.in{opacity:0;animation:none}
+.active .in{animation:inUp .8s var(--ease) forwards;animation-delay:var(--d,0s)}
+.active .in.fade{animation-name:inFade} .active .in.zoom{animation-name:inZoom} .active .in.left{animation-name:inLeft}
+@keyframes inUp{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+@keyframes inFade{from{opacity:0}to{opacity:1}}
+@keyframes inZoom{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+@keyframes inLeft{from{opacity:0;transform:translateX(-50px)}to{opacity:1;transform:none}}
+
+/* svg drawing */
+.draw path,.draw line,.draw polyline,path.draw,line.draw{stroke-dasharray:var(--len,1200);stroke-dashoffset:var(--len,1200);transition:stroke-dashoffset 1.3s var(--ease)}
+.shown.draw path,.shown.draw line,.shown.draw polyline,path.draw.shown,line.draw.shown,.active .autodraw path,.active path.autodraw{stroke-dashoffset:0}
+.autodraw path,path.autodraw{stroke-dasharray:var(--len,1200);stroke-dashoffset:var(--len,1200);transition:stroke-dashoffset 1.6s var(--ease) var(--d,0s)}
+.flow{stroke-dasharray:8 10;animation:flow 1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-36}}
+.pulse{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
+.float{animation:float 4s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-10px)}}
+.spin{animation:spin 8s linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+.shake.shown{animation:shake .5s 2}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+
+/* svg text */
+svg text{font-family:var(--font);fill:var(--ink2)}
+svg .mono{font-family:var(--mono)}
+svg .box{fill:var(--card);stroke:var(--line2);stroke-width:2}
+svg .td{fill:#06070d;font-weight:700} svg .tw{fill:var(--ink)} svg .tm{fill:var(--muted)} svg .ta{fill:var(--api)} svg .tr{fill:var(--red)}
+svg .tg{fill:var(--mvc)} svg .to{fill:var(--asp)} svg .tb{fill:var(--wf)} svg .tp{fill:var(--core)} svg .tn{fill:var(--net)} svg .ty{fill:var(--yel)}
+svg .b{font-weight:800}
+.chain .lc{transition:none}
+.chain.shown .lc{animation:lit .5s var(--ease) forwards;animation-delay:calc(var(--i) * .45s)}
+@keyframes lit{from{fill:var(--card);stroke:var(--line2)}to{fill:color-mix(in srgb,var(--a,var(--net)) 30%,var(--card));stroke:var(--a,var(--net))}}
+.chain .lct{opacity:.35}
+.chain.shown .lct{animation:litT .5s forwards;animation-delay:calc(var(--i) * .45s)}
+@keyframes litT{to{opacity:1}}
+.problem{display:inline-block;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.45);color:#ffc2cd;border-radius:12px;padding:12px 20px;font-size:21px}
+.problem::before{content:"⚠";color:var(--red);font-size:22px;margin-right:10px}
+.solve{display:inline-block;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.45);color:#c8f7d6;border-radius:12px;padding:12px 20px;font-size:21px}
+.solve::before{content:"✓";color:var(--mvc);font-size:22px;font-weight:800;margin-right:10px}
+.year{font:800 120px/1 var(--mono);color:transparent;-webkit-text-stroke:2px color-mix(in srgb,var(--a,var(--net)) 60%,transparent);position:absolute;right:80px;top:40px;opacity:.6}
+
+/* section divider */
+.divider .big-num{font:800 260px/1 var(--mono);position:absolute;right:70px;bottom:40px;color:transparent;-webkit-text-stroke:2px rgba(139,108,255,.25)}
+.divider h1{font-size:92px}
+
+/* quiz */
+.qa{display:grid;grid-template-columns:60px 1fr;gap:8px 18px;align-items:start;margin-bottom:30px}
+.qa .n{font:800 26px var(--mono);color:var(--net)}
+.qa .q{font-size:27px;color:var(--ink)}
+.qa .a{grid-column:2;font-size:22px;color:var(--mvc);border-left:3px solid var(--mvc);padding-left:14px}
+
+/* timeline */
+.tl{position:relative;height:100%}
+.era{border-radius:14px;padding:16px 18px;border:1px solid color-mix(in srgb,var(--a) 50%,transparent);background:color-mix(in srgb,var(--a) 9%,var(--bg2))}
+.era .y{font:700 16px var(--mono);color:var(--a)}
+.era .n{font-size:22px;font-weight:800;color:var(--ink);margin:4px 0}
+.era .d{font-size:16px;color:var(--ink2);line-height:1.4}
+
+.callout{border-left:4px solid var(--a,var(--net));background:color-mix(in srgb,var(--a,var(--net)) 9%,transparent);padding:16px 22px;border-radius:0 12px 12px 0;font-size:22px;color:var(--ink2)}
+.callout b{color:var(--a,var(--net))}
+.chip{display:inline-block;padding:3px 10px;border-radius:8px;font:600 16px var(--mono);background:var(--bg3);border:1px solid var(--line2);color:var(--ink2);margin:3px}
+
+@media print{
+  html,body{overflow:visible;background:#fff}
+  #stage{position:static;display:block}#deck{transform:none!important;box-shadow:none}
+  #hud,#bar,#help,#notes{display:none}
+}
+
+.shown path.draw,.shown line.draw,.shown polyline.draw{stroke-dashoffset:0}
+
+.grid2>*,.grid3>*,.grid4>*{min-width:0}
+.cmp{padding:14px 22px!important}.cmp h3{font-size:22px;margin-bottom:4px}.cmp p{font-size:18px}
+.active .typing.auto{animation:type var(--t,1.4s) steps(var(--n,30)) forwards,caret .8s step-end 3}
+.gone{opacity:0!important;transition:opacity .6s var(--ease)!important}
+.hl-row{transition:all .4s}
+.big-emoji{font-size:64px;line-height:1}
+.method-card{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:16px;border:1px solid color-mix(in srgb,var(--a) 55%,transparent);background:color-mix(in srgb,var(--a) 10%,var(--bg2))}
+.method-card .m{font:800 26px var(--mono);color:var(--a);min-width:120px}
+.method-card .t{font-size:22px;color:var(--ink2)}
+.verb{font:800 64px var(--mono);color:var(--a)}
+#notes{max-height:46vh;font-size:19px;line-height:1.55}
+#notes .nl{padding:3px 10px;border-radius:6px;margin:2px 0}
+#notes .say{color:#e6e8f7}
+#notes .cue{color:#9aa0c3}
+#notes .cue .ck{display:inline-block;min-width:54px;font:700 15px var(--mono);color:#22d3ee}
+#notes .cue.done{opacity:.4}
+#notes .cue.next{background:rgba(34,211,238,.14);color:#fff;box-shadow:inset 3px 0 0 #22d3ee}
+#notes .q{color:#facc15}
+#notes .t{color:#a78bfa;font:600 15px var(--mono)}
+#notes .imp{color:#22c55e;font-weight:700}
+#notes .dir{color:#8a90b8;font-style:italic;font-size:16px}
+body.presenter #stage,body.presenter #help,body.presenter #notes,body.presenter #overview{display:none!important}
+body.presenter{overflow:auto;background:#0a0c16}
+#presenter{display:flex;flex-direction:column;height:100vh;font-family:var(--font);color:var(--ink)}
+#presenter .p-head{display:flex;gap:24px;align-items:center;padding:14px 26px;background:#151935;border-bottom:2px solid var(--net);font-size:20px;font-weight:700}
+#presenter .p-steps{color:var(--api);font:600 16px var(--mono)}
+#presenter .p-clock{margin-left:auto;color:var(--core);font:700 20px var(--mono)}
+#presenter .p-notes{flex:1;overflow:auto;padding:18px 30px;font-size:23px;line-height:1.55}
+#presenter .nl{padding:5px 12px;border-radius:8px;margin:3px 0}
+#presenter .say{color:#e6e8f7}
+#presenter .cue{color:#9aa0c3;font-size:19px}
+#presenter .cue .ck{display:inline-block;min-width:60px;font:700 16px var(--mono);color:#22d3ee}
+#presenter .cue.done{opacity:.35}
+#presenter .cue.next{background:rgba(34,211,238,.16);color:#fff;box-shadow:inset 4px 0 0 #22d3ee;font-size:22px}
+#presenter .q{color:#facc15}
+#presenter .t{color:#a78bfa;font:600 17px var(--mono)}
+#presenter .imp{color:#22c55e;font-weight:700}
+#presenter .dir{color:#8a90b8;font-style:italic;font-size:18px}
+#presenter .p-foot{display:flex;gap:20px;padding:10px 26px;background:#11142a;color:var(--muted);font-size:16px}
+#presenter .p-help{margin-left:auto;font-size:13px}
+
+/* ===== Light "warm paper" theme =====
+   Semantic colours (constant across the whole deck):
+   Frontend = pink · Backend/API = violet · Database = amber
+   Request = blue · Response/success = green · Error = red
+   Methods: GET green · POST amber · PUT blue · PATCH teal · DELETE red */
+:root{
+  --bg:#fbf8f3; --bg2:#f4efe6; --bg3:#efe8dc; --card:#ffffff; --line:#e6dfd2; --line2:#cfc6b6;
+  --ink:#1e2132; --ink2:#41465c; --muted:#7b8096;
+  --net:#6d28d9; --net2:#5b21b6;
+  --asp:#d97706; --wf:#2563eb; --mvc:#16a34a; --core:#0d9488; --api:#2563eb; --red:#dc2626; --pink:#db2777; --yel:#ca8a04;
+  --shadow:0 1px 2px rgba(30,33,50,.05),0 10px 28px -14px rgba(30,33,50,.18);
+}
+
+/* stage */
+#deck{background:
+  radial-gradient(900px 600px at 92% -8%,rgba(109,40,217,.07),transparent 60%),
+  radial-gradient(800px 560px at -6% 108%,rgba(217,119,6,.07),transparent 60%),
+  var(--bg)}
+#deck::before{background-image:radial-gradient(rgba(30,33,50,.075) 1.3px,transparent 1.4px);background-size:30px 30px;
+  mask-image:radial-gradient(ellipse at center,#000 25%,transparent 85%)}
+
+/* chrome */
+#hud .sec{color:var(--net)}
+#hud .dots{color:var(--line2)} #hud .dots b{color:var(--net)}
+#help{color:var(--muted)}
+#overview{background:rgba(251,248,243,.97)}
+#overview button{background:#fff;color:var(--ink2);box-shadow:var(--shadow)}
+#overview button:hover,#overview button.cur{color:var(--ink)}
+
+/* typography */
+.kicker{display:inline-block;width:fit-content;align-self:flex-start;letter-spacing:.12em;padding:6px 14px;border-radius:99px;background:color-mix(in srgb,currentColor 10%,transparent)}
+code.i{background:rgba(109,40,217,.08);color:#5b21b6}
+ul.clean li::before{border-radius:4px}
+
+/* cards */
+.card{background:#fff;border:1px solid var(--line);box-shadow:var(--shadow)}
+.card.accent{border-color:color-mix(in srgb,var(--a,var(--net)) 30%,var(--line));border-top:5px solid var(--a,var(--net));
+  box-shadow:0 1px 2px rgba(30,33,50,.05),0 16px 34px -18px color-mix(in srgb,var(--a,var(--net)) 55%,transparent)}
+.card .ico{background:color-mix(in srgb,var(--a,var(--net)) 12%,#fff)}
+.pill{background:#fff;border-color:var(--line2)}
+.pill.on{background:color-mix(in srgb,var(--a,var(--net)) 10%,#fff);border-color:color-mix(in srgb,var(--a,var(--net)) 55%,#fff)}
+.tag{background:color-mix(in srgb,var(--a,var(--net)) 14%,#fff)}
+.chip{background:#fff;border-color:var(--line2)}
+table.t{background:#fff;box-shadow:var(--shadow)}
+table.t th{background:var(--bg2)}
+.method-card{background:color-mix(in srgb,var(--a) 7%,#fff);border-color:color-mix(in srgb,var(--a) 40%,#fff);box-shadow:var(--shadow)}
+.callout{background:color-mix(in srgb,var(--a,var(--net)) 7%,#fff)}
+.era{background:color-mix(in srgb,var(--a) 7%,#fff)}
+
+/* status boxes */
+.problem{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
+.solve{background:#f0fdf4;border-color:#86efac;color:#166534}
+.divider .big-num{-webkit-text-stroke:2px rgba(109,40,217,.16)}
+.year{opacity:.45}
+
+/* code — light editor look; terminal stays dark like a real terminal */
+.code{background:#fff;color:var(--ink);border-color:var(--line);box-shadow:var(--shadow)}
+.code .ttl{background:var(--bg2);color:var(--muted)}
+.code .ln.hl{background:rgba(109,40,217,.07);box-shadow:inset 3px 0 0 var(--net)}
+.code .ln.dim{opacity:.42}
+.code .k,.code .kd,.code .kn,.code .kr,.code .kc{color:#7c3aed}
+.code .kt{color:#2563eb}
+.code .s,.code .s1,.code .s2,.code .sa,.code .se,.code .si,.code .sd{color:#15803d}
+.code .c,.code .c1,.code .cm,.code .cp,.code .ch{color:#8b8fa3}
+.code .m,.code .mi,.code .mf,.code .mh{color:#c2410c}
+.code .nf,.code .fm{color:#1d4ed8}
+.code .nc,.code .nn,.code .nt,.code .nd{color:#b45309}
+.code .na{color:#7c3aed} .code .nb{color:#0e7490}
+.code .o,.code .p{color:#64748b}
+.code .nv,.code .nx{color:var(--ink)}
+.code .go{color:#64748b}
+.term{border-color:#2a2e45;box-shadow:var(--shadow)}
+
+/* svg */
+svg .box{fill:#fff;stroke:var(--line2)}
+svg .td{fill:#fff}
+
+/* lecturer notes panel + presenter window stay dark (laptop only) */
+#notes{color:#c3c7e6}
+#presenter{color:#e6e8f7}
+#presenter .p-steps{color:#22d3ee}
+#presenter .p-clock{color:#a78bfa}
+#presenter .p-foot{color:#8a90b8}
+
+.slide .notes{display:none}</style></head>
+<body>
+<div id="stage"><div id="deck">
+<!-- =========================================================
+     EF Core კონსოლში — C# + MS SQL → ORM → EF Core → 4 ნაბიჯი → პრაქტიკა
+     ფერები: C#/კოდი = იისფერი · ბაზა = ქარვისფერი · ORM/EF Core = ზღვისფერი (teal)
+             მოთხოვნა = ლურჯი · პასუხი/წარმატება = მწვანე · შეცდომა = წითელი
+     ========================================================= -->
+<style>
+.stepper{position:absolute;right:90px;top:calc(72px + (var(--h,900px) - 900px) / 2);display:flex;gap:8px;z-index:3}
+.stepper span{font:600 14px var(--mono);padding:6px 13px;border-radius:99px;border:1px solid var(--line2);color:var(--muted);background:#fff}
+.stepper span.done{color:var(--mvc);border-color:color-mix(in srgb,var(--mvc) 45%,#fff)}
+.stepper span.on{background:var(--core);border-color:var(--core);color:#fff;box-shadow:0 6px 16px -8px var(--core)}
+i.codestep{display:none}
+.mono{font-family:var(--mono)}
+.late{opacity:0}
+.shown .late,.shown.late{animation:inFade .6s var(--ease) var(--ld,.9s) forwards}
+.term .pm::before{content:"PM> ";color:var(--core)}
+.term .ok{color:#4ade80}
+.term .warn{color:#fbbf24}
+.term .body{font-size:18px;line-height:1.65}
+.tree{font:19px/1.9 var(--mono);color:var(--ink2)}
+.tree .n{display:block;white-space:nowrap}
+.tree .n i{font-style:normal;margin-right:8px}
+.tree .lvl1{padding-left:30px}.tree .lvl2{padding-left:60px}.tree .lvl3{padding-left:90px}.tree .lvl4{padding-left:120px}
+.tree .hi{color:var(--ink);font-weight:700}
+.nuget{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.nuget .logo{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font:800 16px var(--mono);color:#fff;background:linear-gradient(135deg,#6d28d9,#0d9488);flex:none}
+.nuget .nm{font:700 19px var(--mono);color:var(--ink)}
+.nuget .ds{font-size:16px;color:var(--muted)}
+.nuget .btn{margin-left:auto;font:700 15px var(--mono);padding:8px 16px;border-radius:10px;background:var(--core);color:#fff}
+.seg{padding:4px 2px;border-bottom:5px solid var(--a);color:var(--ink);transition:background .4s}
+.cs{font:700 30px/1.5 var(--mono);text-align:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 20px;box-shadow:var(--shadow);letter-spacing:-.3px}
+.flowrow{display:flex;align-items:center;gap:18px}
+.fbox{flex:1;border-radius:16px;padding:18px 20px;border:2px solid var(--a);background:color-mix(in srgb,var(--a) 8%,#fff);text-align:center}
+.fbox .e{font-size:38px;line-height:1.2}
+.fbox .l{font-size:21px;font-weight:700;color:var(--ink)}
+.fbox .s{font:15px var(--mono);color:var(--muted)}
+.farrow{font:700 17px var(--mono);color:var(--a);text-align:center;min-width:170px}
+.farrow .ar{display:block;font-size:40px;line-height:1}
+.big-n{font:800 120px/1 var(--mono)}
+.check li{list-style:none;position:relative;padding-left:44px;margin:12px 0;font-size:23px}
+.check li::before{content:"";position:absolute;left:0;top:.2em;width:26px;height:26px;border-radius:8px;border:2px solid var(--line2);background:#fff}
+.check li.shown::before{content:"✓";color:#fff;background:var(--mvc);border-color:var(--mvc);font:800 18px/26px var(--font);text-align:center}
+.mock{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.mock .mh{background:var(--bg2);padding:10px 16px;font:600 14px var(--mono);color:var(--muted);border-bottom:1px solid var(--line)}
+.mock .mb{padding:18px 20px}
+.field{font:600 18px var(--mono);border:2px solid var(--line2);border-radius:10px;padding:10px 14px;color:var(--ink);background:#fff}
+.field.hot{border-color:var(--asp);box-shadow:0 0 0 4px rgba(217,119,6,.15)}
+.phase{text-align:center}
+.phase .em{font-size:72px;line-height:1.1}
+.phase .tt{font:700 15px var(--mono);color:var(--a)}
+</style>
+
+<!-- 1. TITLE -->
+<section class="slide" data-section="შესავალი">
+  <div class="vcenter" style="max-width:860px">
+    <div class="kicker in" style="color:var(--core)">Entity Framework Core · Console App</div>
+    <h1 class="in" style="--d:.15s">C#-ი ხვდება<br><span class="grad">მონაცემთა ბაზას</span></h1>
+    <p class="lead in mt" style="--d:.35s">რა არის ORM, რა არის EF Core და როგორ დავაკავშიროთ ჩვენი C# კოდი SQL Server-თან — <b>4 ნაბიჯში</b></p>
+  </div>
+  <div class="abs" style="right:90px;top:250px">
+    <svg viewBox="0 0 600 380" width="600" height="380">
+      <g class="in" style="--d:.45s"><rect x="10" y="110" width="170" height="160" rx="22" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/><text x="95" y="190" text-anchor="middle" class="tn b" font-size="56">C#</text><text x="95" y="236" text-anchor="middle" class="tm" font-size="19">კოდი</text></g>
+      <g class="in" style="--d:.7s"><path d="M425 130 v120 a85 22 0 0 0 170 0 v-120" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="510" cy="130" rx="85" ry="22" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><text x="510" y="208" text-anchor="middle" class="to b" font-size="40">SQL</text><text x="510" y="246" text-anchor="middle" class="tm" font-size="19">ბაზა</text></g>
+      <path id="br1" class="autodraw" style="--d:1s" d="M180 190 C 260 70, 345 70, 425 190" stroke="#0d9488" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <g class="in fade" style="--d:1.9s">
+        <rect x="236" y="56" width="130" height="40" rx="20" fill="#0d9488"/><text x="301" y="83" text-anchor="middle" font-size="19" class="b" style="fill:#fff">EF Core</text>
+        <circle r="9" fill="#6d28d9"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#br1"/></animateMotion></circle>
+        <circle r="9" fill="#d97706"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#br1"/></animateMotion></circle>
+      </g>
+      <g class="in fade" style="--d:2.2s"><text x="300" y="330" text-anchor="middle" class="tm" font-size="18">ობიექტები ⇄ ცხრილები</text></g>
+    </svg>
+  </div>
+  <aside class="notes" data-cues="0"><div class="nl t">⏱ 0:00 · 2 წთ</div><div class="nl dir">სლაიდი ღიაა, სანამ სტუდენტები სხდებიან.</div><div class="nl say">გამარჯობა! დღეს ძალიან მნიშვნელოვანი დღეა — დღეს ორ რამეს, რაც უკვე ვიცით, ერთმანეთს ვაკავშირებთ.</div><div class="nl say">ვისწავლეთ C#. ვისწავლეთ MS SQL და ბაზები. მაგრამ ჯერჯერობით ეს ორი სამყარო ცალ-ცალკე ცხოვრობს.</div><div class="nl say">მარჯვნივ ხედავთ დღევანდელ სურათს: მარცხნივ ჩვენი C# კოდი, მარჯვნივ ბაზა, შუაში — ხიდი. ეს ხიდი არის EF Core.</div><div class="nl imp">ლექციის ბოლოს თქვენი C# პროგრამა თვითონ შექმნის ბაზას, ცხრილს და მასში ჩაწერს მონაცემს.</div></aside>
+</section>
+
+<!-- 2. ROADMAP -->
+<section class="slide">
+  <div class="kicker">დღის გზა</div>
+  <h2>სადამდე მოვედით და სად მივდივართ</h2>
+  <svg viewBox="0 0 1420 470" width="1420" height="470">
+    <path class="autodraw" style="--d:.2s" d="M90 230 C250 80 360 380 540 230 S860 80 1000 230 S1250 380 1340 230" stroke="#cfc6b6" stroke-width="4" fill="none" stroke-dasharray="10 10"/>
+    <g class="in zoom" style="--d:.3s;transform-origin:90px 230px"><circle cx="90" cy="230" r="46" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/><text x="90" y="246" text-anchor="middle" class="tn b" font-size="34">C#</text><text x="90" y="318" text-anchor="middle" class="tw b" font-size="21">C#</text><text x="90" y="344" text-anchor="middle" class="tg b" font-size="16">✓ ვიცით</text><circle cx="124" cy="196" r="16" fill="#16a34a"/><text x="124" y="203" text-anchor="middle" font-size="18" style="fill:#fff" class="b">✓</text></g>
+    <g class="in zoom" style="--d:.55s;transform-origin:300px 190px"><circle cx="300" cy="190" r="46" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><text x="300" y="206" text-anchor="middle" font-size="38">🗄️</text><text x="300" y="112" text-anchor="middle" class="tw b" font-size="21">MS SQL</text><text x="300" y="88" text-anchor="middle" class="tg b" font-size="16">✓ ვიცით</text><circle cx="334" cy="156" r="16" fill="#16a34a"/><text x="334" y="163" text-anchor="middle" font-size="18" style="fill:#fff" class="b">✓</text></g>
+    <g class="step zoom" style="transform-origin:540px 230px"><circle cx="540" cy="230" r="46" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/><text x="540" y="246" text-anchor="middle" font-size="38">🌉</text><text x="540" y="318" text-anchor="middle" class="tw b" font-size="21">ORM</text><text x="540" y="344" text-anchor="middle" class="tm" font-size="16">რა იდეაა</text></g>
+    <g class="step zoom" style="transform-origin:780px 150px"><circle cx="780" cy="150" r="46" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/><text x="780" y="166" text-anchor="middle" font-size="38">🧩</text><text x="780" y="72" text-anchor="middle" class="tw b" font-size="21">EF Core</text><text x="780" y="48" text-anchor="middle" class="tm" font-size="16">C#-ის ORM</text></g>
+    <g class="step zoom" style="transform-origin:1000px 230px"><circle cx="1000" cy="230" r="46" fill="#eaf2fe" stroke="#2563eb" stroke-width="3"/><text x="1000" y="246" text-anchor="middle" font-size="38">🔧</text><text x="1000" y="318" text-anchor="middle" class="tw b" font-size="21">4 ნაბიჯი</text><text x="1000" y="344" text-anchor="middle" class="tm" font-size="16">პროექტის მომზადება</text></g>
+    <g class="step zoom" style="transform-origin:1340px 230px"><circle cx="1340" cy="230" r="52" fill="#eaf8ef" stroke="#16a34a" stroke-width="4" class="pulse"/><text x="1340" y="248" text-anchor="middle" font-size="42">⌨️</text><text x="1340" y="320" text-anchor="middle" class="tg b" font-size="21">პრაქტიკა</text><text x="1340" y="346" text-anchor="middle" class="tm" font-size="16">მე → ერთად → თქვენ</text></g>
+  </svg>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 0:02 · 2 წთ</div><div class="nl q">❓ ვინ მეტყვის, რა ვისწავლეთ აქამდე? (C# და SQL — ორივეს მწვანე ნიშანი აქვს.)</div><div class="nl say">ორი გაჩერება უკვე გავიარეთ. დღეს დანარჩენ ოთხს გავივლით.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>ORM</div><div class="nl say">ჯერ — ORM: იდეა, რომელიც ამ ორ სამყაროს აკავშირებს.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>EF Core</div><div class="nl say">შემდეგ — EF Core: ეს იდეა C#-ში.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>4 ნაბიჯი</div><div class="nl say">შემდეგ — 4 ნაბიჯი, რომლითაც ნებისმიერ პროექტს ბაზასთან ვაკავშირებთ.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>პრაქტიკა</div><div class="nl say">და ბოლოს პრაქტიკა სამ რაუნდად: ჯერ მე ვაკეთებ, მერე ერთად ვაკეთებთ, მერე — თქვენ დამოუკიდებლად.</div></aside>
+</section>
+
+<!-- ============ PART 1: PROBLEM ============ -->
+<section class="slide divider" data-section="1 · პრობლემა">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 1</div>
+    <h1 class="in" style="--d:.1s">ორი სამყარო,<br><span class="grad">ორი ენა</span></h1>
+    <p class="lead mt in" style="--d:.3s">რატომ არ ელაპარაკება C# ბაზას „თავისით“</p>
+  </div>
+  <div class="big-num">01</div>
+  <aside class="notes" data-cues="0"><div class="nl t">⏱ 0:04</div><div class="nl say">დავიწყოთ პრობლემით. თუ პრობლემას არ გავიგებთ, გამოსავალიც არ გვეყვარება.</div></aside>
+</section>
+
+<!-- 3. TWO WORLDS -->
+<section class="slide" data-section="1 · პრობლემა">
+  <div class="kicker">ერთი და იგივე პროდუქტი</div>
+  <h2>C#-ში და SQL-ში ასე გამოიყურება</h2>
+  <div style="display:grid;grid-template-columns:1fr 150px 1fr;gap:20px;align-items:center">
+    <div class="card accent step left" style="--a:var(--net);grid-column:1;grid-row:1">
+      <h3><span class="ico">🟣</span>C# სამყარო</h3>
+      <pre class="code sm"><span class="ttl">Product.cs</span><code><span class="ln"><span class="k">class</span><span class="w"> </span><span class="nc">Product</span></span><span class="ln"><span class="p">{</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">Id</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="n">Name</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">decimal</span><span class="w"> </span><span class="n">Price</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="p">}</span></span><span class="ln"> </span><span class="ln"><span class="kt">var</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Product</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"მაუსი"</span><span class="p">,</span><span class="w"> </span><span class="n">Price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">45</span><span class="w"> </span><span class="p">}</span><span class="p">;</span></span><span class="ln"><span class="w">      </span></span></code></pre>
+      <p class="small mt" style="margin-top:14px">ფიქრობს <b>კლასებით და ობიექტებით</b></p>
+    </div>
+    <div class="card accent step right" style="--a:var(--asp);grid-column:3;grid-row:1">
+      <h3><span class="ico">🗄️</span>SQL სამყარო</h3>
+      <pre class="code sm"><span class="ttl">SQL Server</span><code><span class="ln"><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">Products</span><span class="w"> </span><span class="p">(</span></span><span class="ln"><span class="w">    </span><span class="n">Id</span><span class="w"> </span><span class="nb">INT</span><span class="w"> </span><span class="k">IDENTITY</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span></span><span class="ln"><span class="w">    </span><span class="n">Name</span><span class="w"> </span><span class="n">NVARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span></span><span class="ln"><span class="w">    </span><span class="n">Price</span><span class="w"> </span><span class="nb">DECIMAL</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span></span><span class="ln"><span class="p">)</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">Products</span><span class="w"> </span><span class="p">(</span><span class="n">Name</span><span class="p">,</span><span class="w"> </span><span class="n">Price</span><span class="p">)</span></span><span class="ln"><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="n">N</span><span class="s1">'მაუსი'</span><span class="p">,</span><span class="w"> </span><span class="mi">45</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="w">      </span></span></code></pre>
+      <p class="small mt" style="margin-top:14px">ფიქრობს <b>ცხრილებით და ჩანაწერებით</b></p>
+    </div>
+    <svg viewBox="0 0 150 200" width="150" height="200" class="step zoom" style="grid-column:2;grid-row:1">
+      <path d="M10 100 H140" stroke="#cfc6b6" stroke-width="4" stroke-dasharray="8 10" class="flow"/>
+      <circle cx="75" cy="100" r="44" fill="#fff" stroke="#dc2626" stroke-width="3" class="pulse"/>
+      <text x="75" y="118" text-anchor="middle" class="tr b" font-size="52">?</text>
+    </svg>
+  </div>
+  <div class="callout step mt" style="--a:var(--red)">ორივე ერთსა და იმავეს აღწერს. მაგრამ <b>სხვადასხვა ენაზე ლაპარაკობენ</b> — როგორ ვათარგმნოთ ერთიდან მეორეში?</div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 0:04 · 3 წთ</div><div class="nl say">ვთქვათ, ვაკეთებთ ონლაინ მაღაზიას და გვაქვს პროდუქტი.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>C# სამყარო</div><div class="nl say">C#-ში პროდუქტი არის კლასი. კონკრეტული მაუსი — ამ კლასის ობიექტი. ეს ყველაფერი მეხსიერებაში ცხოვრობს: პროგრამა დაიხურა — მონაცემი გაქრა.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>SQL სამყარო</div><div class="nl say">SQL-ში იგივე პროდუქტი არის ცხრილი, კონკრეტული მაუსი — ერთი ჩანაწერი, ერთი ხაზი. აქ მონაცემი რჩება სამუდამოდ.</div><div class="nl q">❓ ორივე ერთი და იგივეა? (კი — Id, Name, Price.) მაგრამ ერთნაირადაა დაწერილი? (არა.)</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>კითხვის ნიშანი</div><div class="nl say">აი, ჩვენი პრობლემა: ეს ორი სამყარო ერთმანეთს არ იცნობს.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>დასკვნა</div><div class="nl imp">C# ობიექტებით ფიქრობს, ბაზა — ცხრილებით. ვიღაცამ უნდა ითარგმნოს.</div></aside>
+</section>
+
+<!-- 4. WITHOUT ORM -->
+<section class="slide" data-section="1 · პრობლემა">
+  <div class="kicker">ვცადოთ ხელით</div>
+  <h2>ORM-ის გარეშე: <span class="c-red">ყველაფერი ხელით</span></h2>
+  <div class="grid2" style="grid-template-columns:1.35fr 1fr;align-items:start">
+    <pre class="code" id="ado"><span class="ttl">ADO.NET — ბაზიდან პროდუქტების წაკითხვა</span><code><span class="ln"><span class="k">using</span><span class="w"> </span><span class="nn">var</span><span class="w"> </span><span class="n">conn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">SqlConnection</span><span class="p">(</span><span class="n">connectionString</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="n">conn</span><span class="p">.</span><span class="n">Open</span><span class="p">(</span><span class="p">)</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="kt">var</span><span class="w"> </span><span class="n">cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">SqlCommand</span><span class="p">(</span><span class="s">"SELECT Id, Name, Price FROM Products"</span><span class="p">,</span><span class="w"> </span><span class="n">conn</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="k">using</span><span class="w"> </span><span class="nn">var</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cmd</span><span class="p">.</span><span class="n">ExecuteReader</span><span class="p">(</span><span class="p">)</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="kt">var</span><span class="w"> </span><span class="n">products</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Product</span><span class="o">&gt;</span><span class="p">(</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">reader</span><span class="p">.</span><span class="n">Read</span><span class="p">(</span><span class="p">)</span><span class="p">)</span></span><span class="ln"><span class="p">{</span></span><span class="ln"><span class="w">    </span><span class="n">products</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">Product</span></span><span class="ln"><span class="w">    </span><span class="p">{</span></span><span class="ln"><span class="w">        </span><span class="n">Id</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="n">reader</span><span class="p">.</span><span class="n">GetInt32</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="p">,</span></span><span class="ln"><span class="w">        </span><span class="n">Name</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">reader</span><span class="p">.</span><span class="n">GetString</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="p">,</span></span><span class="ln"><span class="w">        </span><span class="n">Price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">reader</span><span class="p">.</span><span class="n">GetDecimal</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span></span><span class="ln"><span class="w">    </span><span class="p">}</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="p">}</span></span><span class="ln"><span class="w">    </span></span></code></pre>
+    <div class="col" style="gap:16px">
+      <i class="codestep" data-for="ado" data-lines="1-2"></i>
+      <div class="callout step" data-with style="--a:var(--muted)"><b>კავშირი</b> — ხელით ვხსნით და ვხურავთ</div>
+      <i class="codestep" data-for="ado" data-lines="4"></i>
+      <div class="problem step" data-with>SQL — უბრალო <b>ტექსტია</b>. შეცდომას კომპილატორი ვერ დაინახავს</div>
+      <i class="codestep" data-for="ado" data-lines="8-16"></i>
+      <div class="problem step" data-with>ყოველი სვეტი ხელით, <b>ნომრით</b> გადაგვაქვს property-ში</div>
+      <i class="codestep" data-for="ado" data-lines="all"></i>
+      <div class="callout step" data-with style="--a:var(--red)">16 ხაზი — და ეს <b>მხოლოდ ერთი SELECT-ია</b>. INSERT, UPDATE, DELETE — ყველა ცხრილზე ისევ ასე 😩</div>
+    </div>
+  </div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 0:07 · 4 წთ</div><div class="nl say">ORM-მდე როგორ აკეთებდნენ ამას? აი, ასე — ეს არის ADO.NET, .NET-ის „დაბალი დონის“ გზა ბაზასთან სალაპარაკოდ.</div><div class="nl dir">კოდს არ ვასწავლით — უბრალოდ ვაჩვენებთ, რამდენი შრომაა.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>ხაზები 1–2</div><div class="nl say">ჯერ ხელით ვხსნით კავშირს ბაზასთან.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>ხაზი 4</div><div class="nl say">SQL ბრძანებას ვწერთ ბრჭყალებში. ეს C#-ისთვის უბრალო ტექსტია.</div><div class="nl q">❓ Products-ის ნაცვლად თუ შემთხვევით დავწერ Prodcts, ვინ შემატყობინებს? (კომპილატორი — არა. მხოლოდ გაშვებისას გაფრინდება.)</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>ხაზები 8–16</div><div class="nl say">შემდეგ ყოველი ჩანაწერიდან ყოველი სვეტი ხელით, ნომრით — 0, 1, 2 — გადაგვაქვს ობიექტში. სვეტების რიგი შეიცვალა — ყველაფერი დაინგრა.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>ყველაფერი</div><div class="nl imp">16 ხაზი მხოლოდ ერთი ცხრილის წასაკითხად. წარმოიდგინეთ 30 ცხრილი და ოთხივე ოპერაცია.</div></aside>
+</section>
+
+<!-- 5. WITH EF CORE (TEASER) -->
+<section class="slide" data-section="1 · პრობლემა">
+  <div class="kicker">იგივე ამოცანა</div>
+  <h2>და ახლა — <span class="c-core">ORM-ით</span></h2>
+  <div class="row" style="align-items:center;gap:60px;margin-top:40px">
+    <div class="col" style="align-items:center;min-width:300px">
+      <div class="row" style="align-items:center;gap:30px">
+        <span class="big-n c-red in" style="--d:.3s;text-decoration:line-through;text-decoration-thickness:8px">16</span>
+        <span class="in" style="--d:.6s;font-size:60px;color:var(--muted)">→</span>
+        <span class="big-n c-mvc in zoom" style="--d:.9s">1</span>
+      </div>
+      <p class="tiny in" style="--d:1s">ხაზი</p>
+    </div>
+    <div class="f1 cs in" style="--d:.5s"><span style="color:#7c3aed">var</span> products = db.<span class="c-core">Products</span>.<span style="color:#1d4ed8">ToList</span>();</div>
+  </div>
+  <div class="grid3 mt2">
+    <div class="solve step">SQL-ს <b>ORM წერს</b> ჩვენ მაგივრად</div>
+    <div class="solve step">სვეტები property-ებში <b>თვითონ ჯდება</b></div>
+    <div class="solve step">შეცდომას <b>კომპილატორი</b> გვაჩვენებს</div>
+  </div>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 0:11 · 2 წთ</div><div class="nl say">ახლა იგივე ამოცანა — ORM-ით.</div><div class="nl imp">16 ხაზი ერთ ხაზად იქცა: „მომეცი ყველა პროდუქტი სიის სახით“.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>SQL-ს ORM წერს</div><div class="nl say">SQL-ს აღარ ვწერთ — ORM თვითონ აგენერირებს.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>სვეტები თვითონ ჯდება</div><div class="nl say">reader.GetInt32(0) აღარ გვჭირდება — ORM-მა იცის, რომელი სვეტი რომელ property-ში ჩასვას.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>კომპილატორი</div><div class="nl say">Products-ს თუ შეგეშლებათ, Visual Studio წითლად გაგიხაზავთ — სანამ გაუშვებთ.</div><div class="nl q">❓ გინდათ გაიგოთ, როგორ? ამისთვის ჯერ უნდა გავიგოთ, რა არის ORM.</div></aside>
+</section>
+
+<!-- ============ PART 2: ORM ============ -->
+<section class="slide divider" data-section="2 · ORM">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 2</div>
+    <h1 class="in" style="--d:.1s">რა არის <span class="grad">ORM?</span></h1>
+    <p class="lead mt in" style="--d:.3s">იდეა, რომელსაც თითქმის ყველა პროგრამირების ენაში შეხვდებით</p>
+  </div>
+  <div class="big-num">02</div>
+  <aside class="notes" data-cues="0"><div class="nl t">⏱ 0:13</div><div class="nl say">ORM — ეს ზოგადი ცნებაა, არა მხოლოდ C#-ის. ერთხელ თუ გაიგებთ, Java-შიც, Python-შიც, JavaScript-შიც ამოიცნობთ.</div></aside>
+</section>
+
+<!-- 6. ORM LETTERS -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">სამი ასო</div>
+  <h2>O · R · M</h2>
+  <div class="grid3">
+    <div class="card accent step zoom" style="--a:var(--net);text-align:center">
+      <div class="verb" style="--a:var(--net)">O</div>
+      <h3 style="justify-content:center">Object</h3>
+      <p>ობიექტი — C#-ის <b>კლასები და ობიექტები</b></p>
+    </div>
+    <div class="card accent step zoom" style="--a:var(--asp);text-align:center">
+      <div class="verb" style="--a:var(--asp)">R</div>
+      <h3 style="justify-content:center">Relational</h3>
+      <p>რელაციური ბაზა — <b>ცხრილები, სვეტები</b> და მათი კავშირები</p>
+    </div>
+    <div class="card accent step zoom" style="--a:var(--core);text-align:center">
+      <div class="verb" style="--a:var(--core)">M</div>
+      <h3 style="justify-content:center">Mapping</h3>
+      <p>დაკავშირება — <b>რა რას შეესაბამება</b> ერთ და მეორე მხარეს</p>
+    </div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--core);font-size:26px;text-align:center;border-left:0;border-radius:16px;padding:22px"><b>ORM</b> — თარჯიმანი C#-სა და ბაზას შორის. ჩვენ ვწერთ <b>C#-ს</b>, ის ბაზას ელაპარაკება <b>SQL-ით</b>.</div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 0:13 · 3 წთ</div><div class="nl say">ORM სამი სიტყვის შემოკლებაა. თითოეულს ცალკე ავხსნი.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>O — Object</div><div class="nl say">Object — ობიექტი. ჩვენი C#-ის მხარე: კლასები და ობიექტები.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>R — Relational</div><div class="nl say">Relational — რელაციური ბაზა. MS SQL სწორედ ასეთია: ცხრილები, სვეტები, Foreign Key-ებით დაკავშირებული.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>M — Mapping</div><div class="nl say">Mapping — დაკავშირება, „რუკის შედგენა“: ეს კლასი — ამ ცხრილს, ეს property — ამ სვეტს.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>განმარტება</div><div class="nl imp">ORM არის თარჯიმანი. ჩვენ ვწერთ C#-ს, ის თვითონ წერს SQL-ს და შედეგს ისევ C#-ის ობიექტებად გვიბრუნებს.</div></aside>
+</section>
+
+<!-- 7. MAPPING -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">Mapping</div>
+  <h2>რა რას შეესაბამება</h2>
+  <svg viewBox="0 0 1420 560" width="1420" height="560">
+    <text x="250" y="30" text-anchor="middle" class="tn b" font-size="22">C# · კოდი</text>
+    <text x="710" y="30" text-anchor="middle" class="tp b" font-size="22">ORM</text>
+    <text x="1170" y="30" text-anchor="middle" class="to b" font-size="22">SQL · ბაზა</text>
+
+    <g class="step fade draw">
+      <rect x="60" y="60" width="380" height="110" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="90" y="98" class="tm" font-size="17">კლასი</text><text x="90" y="140" class="tw mono b" font-size="27">class Product</text>
+      <path d="M450 115 H965" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <g class="late"><polygon points="965,103 985,115 965,127" fill="#0d9488"/>
+        <rect x="980" y="60" width="380" height="110" rx="18" fill="#fef5e4" stroke="#d97706" stroke-width="2.5"/>
+        <text x="1010" y="98" class="tm" font-size="17">ცხრილი</text><text x="1010" y="140" class="tw mono b" font-size="27">TABLE Products</text></g>
+    </g>
+    <g class="step fade draw">
+      <rect x="60" y="230" width="380" height="110" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="90" y="268" class="tm" font-size="17">property</text><text x="90" y="310" class="tw mono b" font-size="25">decimal Price</text>
+      <path d="M450 285 H965" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <g class="late"><polygon points="965,273 985,285 965,297" fill="#0d9488"/>
+        <rect x="980" y="230" width="380" height="110" rx="18" fill="#fef5e4" stroke="#d97706" stroke-width="2.5"/>
+        <text x="1010" y="268" class="tm" font-size="17">სვეტი</text><text x="1010" y="310" class="tw mono b" font-size="25">Price DECIMAL</text></g>
+    </g>
+    <g class="step fade draw">
+      <rect x="60" y="400" width="380" height="110" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="90" y="438" class="tm" font-size="17">ობიექტი</text><text x="90" y="480" class="tw mono b" font-size="22">new Product { … }</text>
+      <path d="M450 455 H965" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <g class="late"><polygon points="965,443 985,455 965,467" fill="#0d9488"/>
+        <rect x="980" y="400" width="380" height="110" rx="18" fill="#fef5e4" stroke="#d97706" stroke-width="2.5"/>
+        <text x="1010" y="438" class="tm" font-size="17">ჩანაწერი (row)</text><text x="1010" y="480" class="tw mono b" font-size="22">1 │ მაუსი │ 45</text></g>
+    </g>
+    <g class="in zoom" style="--d:.3s;transform-origin:710px 285px"><circle cx="710" cy="285" r="58" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/><text x="710" y="303" text-anchor="middle" font-size="48" class="spin">⚙️</text></g>
+  </svg>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 0:16 · 3 წთ</div><div class="nl say">Mapping ნიშნავს, რომ ORM-მა იცის სამი წესი.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>კლასი = ცხრილი</div><div class="nl say">პირველი: ერთი კლასი — ერთი ცხრილი. class Product → ცხრილი Products.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>property = სვეტი</div><div class="nl say">მეორე: კლასის ყოველი property — ცხრილის ერთი სვეტი. Price → სვეტი Price.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>ობიექტი = ჩანაწერი</div><div class="nl say">მესამე: ერთი ობიექტი — ერთი ჩანაწერი, ერთი ხაზი ცხრილში.</div><div class="nl imp">ეს სამი წესი დაიმახსოვრეთ — მთელი დღის ლექცია მათზე დგას: კლასი = ცხრილი, property = სვეტი, ობიექტი = ჩანაწერი.</div></aside>
+</section>
+
+<!-- 8. TRANSLATOR FLOW -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">ORM მუშაობაში</div>
+  <h2>როგორ თარგმნის ORM — ორივე მიმართულებით</h2>
+  <svg viewBox="0 0 1420 540" width="1420" height="540">
+    <!-- C# request -->
+    <g class="in" style="--d:.2s"><rect x="10" y="40" width="330" height="170" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="30" y="78" class="tn b" font-size="19">C# კოდი</text>
+      <text x="30" y="125" class="tw mono" font-size="20">db.Products</text>
+      <text x="30" y="160" class="tw mono" font-size="20">  .Where(p =></text>
+      <text x="30" y="190" class="tw mono" font-size="20">    p.Price &lt; 100)</text></g>
+    <!-- ORM -->
+    <g class="step zoom draw" style="transform-origin:590px 280px">
+      <path d="M345 125 H475" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="475,113 495,125 475,137" fill="#2563eb"/>
+      <rect x="500" y="40" width="190" height="460" rx="22" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/>
+      <text x="595" y="250" text-anchor="middle" font-size="54" class="spin">⚙️</text>
+      <text x="595" y="320" text-anchor="middle" class="tp b" font-size="24">ORM</text>
+      <text x="595" y="350" text-anchor="middle" class="tm" font-size="17">თარგმნის</text></g>
+    <!-- SQL -->
+    <g class="step fade draw">
+      <path d="M695 125 H825" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="825,113 845,125 825,137" fill="#2563eb"/>
+      <g class="late" style="--ld:.6s"><rect x="850" y="55" width="330" height="140" rx="16" fill="#eaf2fe" stroke="#2563eb" stroke-width="2.5"/>
+      <text x="870" y="92" class="tb b" font-size="18">SQL — ORM-მა დაწერა</text>
+      <text x="870" y="136" class="tw mono" font-size="19">SELECT * FROM Products</text>
+      <text x="870" y="170" class="tw mono" font-size="19">WHERE Price &lt; 100</text></g></g>
+    <!-- DB -->
+    <g class="step fade draw">
+      <path d="M1185 125 H1235" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="1235,113 1255,125 1235,137" fill="#2563eb"/>
+      <g class="late" style="--ld:.5s"><path d="M1262 100 v300 a75 20 0 0 0 150 0 v-300" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="1337" cy="100" rx="75" ry="20" fill="#fef5e4" stroke="#d97706" stroke-width="3"/>
+      <text x="1337" y="260" text-anchor="middle" font-size="44">🗄️</text><text x="1337" y="310" text-anchor="middle" class="to b" font-size="20">SQL Server</text></g></g>
+    <!-- rows back -->
+    <g class="step fade draw">
+      <path d="M1255 420 H1185" stroke="#16a34a" stroke-width="4" fill="none"/><polygon points="1185,408 1165,420 1185,432" fill="#16a34a"/>
+      <g class="late" style="--ld:.6s"><rect x="850" y="350" width="310" height="140" rx="16" fill="#eaf8ef" stroke="#16a34a" stroke-width="2.5"/>
+      <text x="870" y="385" class="tg b" font-size="18">ჩანაწერები (rows)</text>
+      <text x="870" y="425" class="tw mono" font-size="19">2 │ მაუსი      │ 45</text>
+      <text x="870" y="460" class="tw mono" font-size="19">5 │ კლავიატურა │ 80</text></g></g>
+    <!-- objects back -->
+    <g class="step fade draw">
+      <path d="M845 420 H695" stroke="#16a34a" stroke-width="4" fill="none"/><path d="M500 420 H345" stroke="#16a34a" stroke-width="4" fill="none"/><polygon points="345,408 325,420 345,432" fill="#16a34a"/>
+      <g class="late" style="--ld:.7s"><rect x="10" y="340" width="310" height="160" rx="18" fill="#f3effe" stroke="#6d28d9" stroke-width="2.5"/>
+      <text x="30" y="376" class="tn b" font-size="19">C# ობიექტები</text>
+      <text x="30" y="418" class="tw mono" font-size="18">List&lt;Product&gt;</text>
+      <text x="30" y="452" class="tw mono" font-size="17">{ Id=2, Name="მაუსი" }</text>
+      <text x="30" y="482" class="tw mono" font-size="17">{ Id=5, Name="კლავიატურა" }</text></g></g>
+  </svg>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 0:19 · 4 წთ</div><div class="nl say">ვნახოთ, რა ხდება, როცა ORM-ს ვთხოვთ „მომეცი 100 ლარზე იაფი პროდუქტები“. მარცხნივ — ჩვენი C# კოდი. SQL-ის არც ერთი სიტყვა.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>ORM იღებს</div><div class="nl say">ჩვენი თხოვნა მიდის ORM-თან. ORM-მა იცის ჩვენი Mapping-ი.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>SQL</div><div class="nl say">ORM თარგმნის: C# → SQL. ეს SQL ჩვენ არ დაგვიწერია!</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>ბაზა</div><div class="nl say">SQL მიდის SQL Server-ში. ბაზისთვის არაფერი შეცვლილა — ჩვეულებრივ SQL-ს იღებს.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>ჩანაწერები</div><div class="nl say">ბაზა აბრუნებს ჩანაწერებს — ცხრილის ხაზებს.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>ობიექტები</div><div class="nl say">ORM ისევ თარგმნის, ახლა უკან: ხაზები → C#-ის ობიექტები. ჩვენ ვიღებთ ჩვეულებრივ List-ს.</div><div class="nl imp">ჩვენ ორივე მხარეს მხოლოდ C#-ს ვხედავთ. თარგმანს ORM აკეთებს.</div></aside>
+</section>
+
+<!-- 9. ORMs EVERYWHERE -->
+<section class="slide" data-section="2 · ORM">
+  <div class="kicker">ORM ყველგანაა</div>
+  <h2>ყველა ენას თავისი ORM აქვს</h2>
+  <div class="grid4">
+    <div class="card step zoom"><p class="tiny">Java</p><h3>Hibernate</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">Python</p><h3>SQLAlchemy · Django ORM</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">JavaScript / TypeScript</p><h3>Prisma · TypeORM</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">PHP (Laravel)</p><h3>Eloquent</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">Ruby (Rails)</p><h3>Active Record</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">Go</p><h3>GORM</h3></div>
+    <div class="card step zoom" data-with><p class="tiny">C# · მცირე ORM</p><h3>Dapper</h3></div>
+    <div class="card accent step zoom" style="--a:var(--core)"><p class="tiny">C# · .NET</p><h3 class="c-core">EF Core ⭐</h3></div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--core)">სახელები სხვადასხვაა, <b>იდეა — ერთი</b>: კლასი = ცხრილი, property = სვეტი, ობიექტი = ჩანაწერი. ერთხელ ისწავლი — ყველგან ამოიცნობ.</div>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 0:23 · 2 წთ</div><div class="nl say">ORM მხოლოდ C#-ში არ არსებობს.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>სხვა ენები</div><div class="nl say">Java-ში Hibernate, Python-ში SQLAlchemy და Django ORM, JavaScript-ში Prisma, PHP-ში Eloquent, Ruby-ში Active Record. C#-შიც არის მცირე ORM — Dapper: SQL-ს თვითონ წერ, ის მხოლოდ ობიექტებად გარდაქმნის.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>EF Core</div><div class="nl say">და C#-ის მთავარი, Microsoft-ის ოფიციალური ORM — Entity Framework Core. დღეს მას ვსწავლობთ.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>დასკვნა</div><div class="nl imp">თუ ხვალ სამსახურში Python-ზე მოგიწევთ მუშაობა — SQLAlchemy-ს ნახავთ და იტყვით: „ეს ხომ იგივეა“.</div></aside>
+</section>
+
+<!-- ============ PART 3: EF CORE ============ -->
+<section class="slide divider" data-section="3 · EF Core">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 3</div>
+    <h1 class="in" style="--d:.1s"><span class="grad">EF Core</span><br>— C#-ის ORM</h1>
+    <p class="lead mt in" style="--d:.3s">Entity Framework Core</p>
+  </div>
+  <div class="big-num">03</div>
+  <aside class="notes" data-cues="0"><div class="nl t">⏱ 0:25</div><div class="nl say">ახლა ჩვენი ORM გავიცნოთ — EF Core.</div></aside>
+</section>
+
+<!-- 10. WHAT IS EF CORE -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">გაცნობა</div>
+  <h2 style="display:flex;align-items:center;gap:24px">რა არის <span class="c-core">EF Core?</span><span class="pill on in zoom" style="--d:.3s;--a:var(--core);font-size:18px;padding:10px 18px">EF Core 10 · .NET 10 · LTS</span></h2>
+  <div class="grid2">
+    <div class="card accent step zoom" style="--a:var(--net)"><h3><span class="ico">🏢</span>Microsoft-ის ოფიციალური</h3><p>.NET-ის გუნდი ქმნის — .NET-თან ერთად ახლდება ყოველ წელს</p></div>
+    <div class="card accent step zoom" style="--a:var(--mvc)"><h3><span class="ico">🆓</span>უფასო და Open Source</h3><p>კოდი GitHub-ზეა, მოდის როგორც <b>NuGet პაკეტი</b></p></div>
+    <div class="card accent step zoom" style="--a:var(--api)"><h3><span class="ico">💻</span>ყველგან მუშაობს</h3><p>Windows, Linux, macOS · Console, Web API, Desktop</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp)"><h3><span class="ico">🔌</span>ბევრ ბაზასთან</h3><p><span class="chip">SQL Server</span><span class="chip">PostgreSQL</span><span class="chip">SQLite</span><span class="chip">MySQL</span><span class="chip">Oracle</span></p></div>
+  </div>
+  <div class="callout step mt" style="--a:var(--asp)">ბაზის შეცვლა = <b>მხოლოდ ერთი პაკეტის</b> შეცვლა. ჩვენ ვიყენებთ <b>SQL Server</b>-ს.</div>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 0:25 · 3 წთ</div><div class="nl say">EF Core — Entity Framework Core. დღეს ბოლო სტაბილური ვერსიაა EF Core 10, .NET 10-თან ერთად. ორივე LTS-ია — სამი წელი მიიღებს მხარდაჭერას.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Microsoft</div><div class="nl say">Microsoft-ის ოფიციალური ORM. .NET-ის გუნდი აკეთებს, ამიტომ .NET-თან ყველაზე კარგად ინტეგრირდება.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>Open Source</div><div class="nl say">უფასოა, კოდი ღიაა GitHub-ზე. პროექტში მოდის NuGet პაკეტად — ამას პირველ ნაბიჯში ვნახავთ.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>ყველგან</div><div class="nl say">მუშაობს Windows-ზეც და Linux-ზეც. დღეს კონსოლში ვიყენებთ, შემდეგ კურსზე — Web API-ში. კოდი იგივე იქნება.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>ბევრი ბაზა</div><div class="nl say">SQL Server, PostgreSQL, SQLite, MySQL... თითოეულისთვის ცალკე პაკეტია — „პროვაიდერი“.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>დასკვნა</div><div class="nl imp">ჩვენი C# კოდი ბაზაზე არ არის მიბმული. ხვალ PostgreSQL-ზე თუ გადავალთ, ძირითადად ერთ პაკეტს და ერთ ხაზს შევცვლით.</div></aside>
+</section>
+
+<!-- 11. LINQ -> SQL -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">EF Core თარგმნის</div>
+  <h2>ჩვენ ვწერთ <span class="c-net">LINQ</span>-ს, ბაზა იღებს <span class="c-asp">SQL</span>-ს</h2>
+  <div class="grid2" style="align-items:start">
+    <div class="col"><p class="tiny">ჩვენ ვწერთ · C#</p>
+      <pre class="code big" id="linq"><span class="ttl">Program.cs</span><code><span class="ln"><span class="kt">var</span><span class="w"> </span><span class="n">cheap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">db</span><span class="p">.</span><span class="n">Products</span></span><span class="ln"><span class="w">    </span><span class="p">.</span><span class="n">Where</span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">Price</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">100</span><span class="p">)</span></span><span class="ln"><span class="w">    </span><span class="p">.</span><span class="n">OrderBy</span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">Name</span><span class="p">)</span></span><span class="ln"><span class="w">    </span><span class="p">.</span><span class="n">ToList</span><span class="p">(</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="w">      </span></span></code></pre></div>
+    <div class="col step right"><p class="tiny">EF Core აგენერირებს · SQL</p>
+      <pre class="code big" id="sqlq"><span class="ttl">SQL Server-ს მიდის</span><code><span class="ln"><span class="k">SELECT</span><span class="w"> </span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="p">.</span><span class="p">[</span><span class="n">Id</span><span class="p">]</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="p">.</span><span class="p">[</span><span class="n">Name</span><span class="p">]</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="p">.</span><span class="p">[</span><span class="n">Price</span><span class="p">]</span></span><span class="ln"><span class="k">FROM</span><span class="w"> </span><span class="p">[</span><span class="n">Products</span><span class="p">]</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">[</span><span class="n">p</span><span class="p">]</span></span><span class="ln"><span class="k">WHERE</span><span class="w"> </span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="p">.</span><span class="p">[</span><span class="n">Price</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">100</span><span class="p">.</span><span class="mi">0</span></span><span class="ln"><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="p">.</span><span class="p">[</span><span class="n">Name</span><span class="p">]</span></span><span class="ln"><span class="w">      </span></span></code></pre></div>
+  </div>
+  <div class="grid4 mt" style="gap:16px">
+    <i class="codestep" data-for="linq" data-lines="1"></i><i class="codestep" data-for="sqlq" data-lines="2" data-with></i>
+    <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>db.Products</b> → FROM Products</div>
+    <i class="codestep" data-for="linq" data-lines="2"></i><i class="codestep" data-for="sqlq" data-lines="3" data-with></i>
+    <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>Where</b> → WHERE</div>
+    <i class="codestep" data-for="linq" data-lines="3"></i><i class="codestep" data-for="sqlq" data-lines="4" data-with></i>
+    <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>OrderBy</b> → ORDER BY</div>
+    <i class="codestep" data-for="linq" data-lines="4"></i><i class="codestep" data-for="sqlq" data-lines="1" data-with></i>
+    <div class="callout step" data-with style="--a:var(--mvc);font-size:19px"><b>ToList()</b> — ახლა იგზავნება!</div>
+  </div>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 0:28 · 4 წთ</div><div class="nl say">C#-ში ცხრილებთან სამუშაოდ LINQ-ს ვიყენებთ — Where, OrderBy, Select — ის, რაც სიებზე უკვე ვისწავლეთ.</div><div class="nl q">❓ ვინ გაიხსენებს, რას აკეთებს Where სიაზე? (ფილტრავს.)</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>SQL</div><div class="nl say">ახლა მარჯვნივ — SQL, რომელსაც EF Core ამ კოდიდან აგენერირებს. ეს ჩვენ არ დაგვიწერია!</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>db.Products</div><div class="nl say">db.Products — ეს არის ცხრილი Products. ხდება FROM Products.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>Where</div><div class="nl say">Where — ხდება WHERE. ჩვენი ლამბდა p.Price &lt; 100 — SQL-ის პირობად იქცა.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>OrderBy</div><div class="nl say">OrderBy — ხდება ORDER BY.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>ToList</div><div class="nl imp">ToList — ყველაზე მნიშვნელოვანი: სანამ ToList-ს არ დავწერთ, ბაზაში არაფერი იგზავნება. ToList-ის მომენტში EF Core აწყობს SQL-ს, აგზავნის და შედეგს სიად გვიბრუნებს.</div></aside>
+</section>
+
+<!-- 12. CODE FIRST -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">ორი მიდგომა</div>
+  <h2>რა იქმნება პირველი — კოდი თუ ბაზა?</h2>
+  <div class="col" style="gap:34px;margin-top:20px">
+    <div class="step left">
+      <p class="small" style="margin-bottom:10px;color:var(--muted)"><b style="color:var(--muted)">Database First</b> — ბაზა უკვე არსებობს</p>
+      <div class="flowrow" style="opacity:.6">
+        <div class="fbox" style="--a:var(--asp)"><div class="e">🗄️</div><div class="l">ბაზა</div><div class="s">უკვე შექმნილი</div></div>
+        <div class="farrow" style="--a:var(--muted)"><span class="ar">⟶</span>Scaffold</div>
+        <div class="fbox" style="--a:var(--net)"><div class="e">📄</div><div class="l">C# კლასები</div><div class="s">გენერირდება</div></div>
+      </div>
+    </div>
+    <div class="step left">
+      <p class="small" style="margin-bottom:10px"><b class="c-core">Code First</b> — ჯერ კოდს ვწერთ</p>
+      <div class="flowrow">
+        <div class="fbox" style="--a:var(--net)"><div class="e">📄</div><div class="l">C# კლასები</div><div class="s">ჩვენ ვწერთ</div></div>
+        <div class="farrow" style="--a:var(--core)"><span class="ar">⟶</span>მიგრაცია</div>
+        <div class="fbox" style="--a:var(--asp)"><div class="e">🗄️</div><div class="l">ბაზა</div><div class="s">EF Core ქმნის</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="solve step mt">დღეს ვმუშაობთ <b>Code First</b>-ით — <b>ბაზას ხელით არ ვქმნით</b>, მას ჩვენი კოდიდან EF Core შექმნის</div>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 0:32 · 2 წთ</div><div class="nl say">EF Core-თან მუშაობის ორი გზა არსებობს.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Database First</div><div class="nl say">Database First: ბაზა უკვე არსებობს — მაგალითად, ძველ პროექტში. EF Core კითხულობს ბაზას და მისგან C#-ის კლასებს აგენერირებს.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>Code First</div><div class="nl say">Code First: ჯერ C#-ის კლასებს ვწერთ, მერე EF Core „მიგრაციით“ ბაზას ქმნის.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>ჩვენი არჩევანი</div><div class="nl imp">დღეს Code First-ს ვიყენებთ — ეს თანამედროვე პროექტებში ყველაზე გავრცელებულია. SSMS-ში CREATE TABLE-ს აღარ დავწერთ — ამას ჩვენი კოდი გააკეთებს.</div></aside>
+</section>
+
+<!-- 13. KEY PLAYERS -->
+<section class="slide" data-section="3 · EF Core">
+  <div class="kicker">მთავარი მოთამაშეები</div>
+  <h2>4 ცნება, რომელსაც დღეს შევხვდებით</h2>
+  <div class="grid4">
+    <div class="card accent step zoom" style="--a:var(--net)"><h3><span class="ico">📄</span>Entity</h3><p><code class="i">Product</code></p><p class="small mt" style="margin-top:12px">ჩვეულებრივი კლასი, რომელიც <b>ცხრილი</b> გახდება</p></div>
+    <div class="card accent step zoom" style="--a:var(--core)"><h3><span class="ico">🎛️</span>DbContext</h3><p><code class="i">DataContext</code></p><p class="small mt" style="margin-top:12px">ბაზის <b>„პულტი“</b>: კავშირი და ყველა ცხრილი ერთად</p></div>
+    <div class="card accent step zoom" style="--a:var(--api)"><h3><span class="ico">📋</span>DbSet</h3><p><code class="i">Products</code></p><p class="small mt" style="margin-top:12px"><b>ცხრილი კოდში</b>: Add, Remove, Where…</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp)"><h3><span class="ico">📐</span>Migration</h3><p><code class="i">InitialCreate</code></p><p class="small mt" style="margin-top:12px">ბაზის ცვლილების <b>„ნახაზი“</b></p></div>
+  </div>
+  <svg viewBox="0 0 1420 220" width="1420" height="220" class="step fade" style="margin-top:22px">
+    <rect x="200" y="20" width="520" height="180" rx="20" fill="#e6f6f4" stroke="#0d9488" stroke-width="3"/>
+    <text x="230" y="60" class="tp b mono" font-size="22">DataContext</text>
+    <rect x="240" y="85" width="440" height="80" rx="14" fill="#eaf2fe" stroke="#2563eb" stroke-width="2.5"/>
+    <text x="460" y="134" text-anchor="middle" class="tw mono b" font-size="21">DbSet&lt;Product&gt; Products</text>
+    <path d="M690 125 H930" stroke="#0d9488" stroke-width="4" class="flow"/><polygon points="930,113 950,125 930,137" fill="#0d9488"/>
+    <path d="M960 70 v110 a90 20 0 0 0 180 0 v-110" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="1050" cy="70" rx="90" ry="20" fill="#fef5e4" stroke="#d97706" stroke-width="3"/>
+    <text x="1050" y="142" text-anchor="middle" class="tw mono b" font-size="21">Products</text>
+    <text x="1050" y="172" text-anchor="middle" class="tm" font-size="16">ცხრილი</text>
+  </svg>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 0:34 · 3 წთ</div><div class="nl say">სანამ პრაქტიკაზე გადავალთ, ოთხი სიტყვა უნდა ვიცოდეთ. ოთხივეს დღეს ხელით დავწერთ.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Entity</div><div class="nl say">Entity — ჩვეულებრივი C#-ის კლასი, მაგალითად Product. ერთი Entity = ერთი ცხრილი.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>DbContext</div><div class="nl say">DbContext — ბაზის „პულტი“. იცის, სად არის ბაზა, და მასში ჩამოთვლილია ყველა ცხრილი. ჩვენს კლასს DataContext დავარქმევთ.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>DbSet</div><div class="nl say">DbSet — ერთი ცხრილი კოდში. Products-ზე ვწერთ Add, Remove, Where — ისე, როგორც ჩვეულებრივ სიაზე.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>Migration</div><div class="nl say">Migration — ნახაზი: „ბაზაში ეს და ეს უნდა შეიქმნას“.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>ერთად</div><div class="nl imp">ერთად ასე გამოიყურება: DataContext-ის შიგნით DbSet Products, რომელიც ბაზის ცხრილ Products-ს შეესაბამება.</div></aside>
+</section>
+
+<!-- ============ PART 4: 4 STEPS ============ -->
+<section class="slide divider" data-section="4 · 4 ნაბიჯი">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 4 · მე ვაჩვენებ</div>
+    <h1 class="in" style="--d:.1s">პროექტის მომზადება<br><span class="grad">4 ნაბიჯში</span></h1>
+    <div class="row mt in" style="--d:.4s;gap:14px;flex-wrap:wrap">
+      <span class="pill on" style="--a:var(--core);font-size:18px">① პაკეტები</span>
+      <span class="pill on" style="--a:var(--core);font-size:18px">② DataContext</span>
+      <span class="pill on" style="--a:var(--core);font-size:18px">③ Connection String</span>
+      <span class="pill on" style="--a:var(--core);font-size:18px">④ მიგრაცია</span>
+    </div>
+  </div>
+  <div class="big-num">04</div>
+  <aside class="notes" data-cues="0"><div class="nl t">⏱ 0:37 · 1 წთ</div><div class="nl say">ახლა მთავარი ნაწილი. ეს ოთხი ნაბიჯი ყოველ ახალ პროექტში ერთნაირია — დღესაც, Web API-შიც, სამსახურშიც.</div><div class="nl imp">ახლა მე ვაკეთებ, თქვენ უყურებთ. კოდს ჯერ არ წერთ — უბრალოდ თვალი მიადევნეთ და გაიგეთ. მერე ერთად გავაკეთებთ.</div><div class="nl dir">ამ ნაწილს პარალელურად ატარებ: სლაიდი → Visual Studio → სლაიდი.</div></aside>
+</section>
+
+<!-- 14. PREP: CONSOLE APP -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="kicker">ნაბიჯი 0 · მომზადება</div>
+  <h2>ახალი პროექტი: <span class="c-net">Console App</span></h2>
+  <div class="grid2" style="align-items:start">
+    <div class="mock step left">
+      <div class="mh">Visual Studio · Create a new project</div>
+      <div class="mb col" style="gap:12px">
+        <div class="field">Console App <span class="tiny">· C#</span></div>
+        <div class="row" style="gap:12px;align-items:center"><span class="tiny" style="min-width:150px">Project name</span><div class="field hot f1">ShopDemo</div></div>
+        <div class="row" style="gap:12px;align-items:center"><span class="tiny" style="min-width:150px">Framework</span><div class="field f1">.NET 10.0 (Long Term Support)</div></div>
+      </div>
+    </div>
+    <div class="col step right">
+      <p class="tiny">ან ტერმინალიდან</p>
+      <div class="term"><div class="bar"><i></i><i></i><i></i><span>Terminal</span></div>
+        <div class="body"><div class="cmd">dotnet new console -n ShopDemo</div><div class="out">The template "Console App" was created successfully.</div></div></div>
+      <div class="callout mt" style="--a:var(--net)">ჩვენი მაგალითი: <b>ონლაინ მაღაზია</b> და ერთი ცხრილი — <b>Products</b></div>
+    </div>
+  </div>
+  <aside class="notes" data-cues="2"><div class="nl t">⏱ 0:38 · 2 წთ · ~ VS-ში: File → New → Project</div><div class="nl say">ჯერ ჩვეულებრივი Console App. აქ ახალი არაფერია.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Visual Studio</div><div class="nl say">Console App, სახელი ShopDemo, Framework — .NET 10.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>ტერმინალი</div><div class="nl say">იგივე ტერმინალიდან ერთი ბრძანებით. რომელი გზაც გირჩევნიათ.</div><div class="nl dir">VS-ში შექმენი პროექტი. ჩვენი მაგალითია მაღაზია და ერთი ცხრილი Products.</div></aside>
+</section>
+
+<!-- 15. STEP 1: PACKAGES -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="on">① პაკეტები</span><span>② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 1 / 4</div>
+  <h2>4 პაკეტის დაყენება</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1.1fr;align-items:start">
+    <div class="col" style="gap:12px">
+      <p class="tiny">Project → Manage NuGet Packages → Browse</p>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">Microsoft.EntityFrameworkCore</div><div class="ds">EF Core-ის ძრავი</div></div><span class="btn">Install</span></div>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">…EntityFrameworkCore<b class="c-asp">.SqlServer</b></div><div class="ds">SQL Server-თან სალაპარაკოდ</div></div><span class="btn">Install</span></div>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">…EntityFrameworkCore<b class="c-core">.Tools</b></div><div class="ds">მიგრაციის ბრძანებები VS-ში</div></div><span class="btn">Install</span></div>
+      <div class="nuget step left"><div class="logo">EF</div><div><div class="nm">…EntityFrameworkCore<b class="c-api">.Design</b></div><div class="ds">მიგრაციების გენერაცია</div></div><span class="btn">Install</span></div>
+    </div>
+    <div class="col step right" style="gap:12px">
+      <p class="tiny">ან Package Manager Console-დან</p>
+      <div class="term"><div class="bar"><i></i><i></i><i></i><span>Package Manager Console</span></div>
+        <div class="body" style="font-size:16px"><div class="pm">Install-Package Microsoft.EntityFrameworkCore</div><div class="pm">Install-Package Microsoft.EntityFrameworkCore.SqlServer</div><div class="pm">Install-Package Microsoft.EntityFrameworkCore.Tools</div><div class="pm">Install-Package Microsoft.EntityFrameworkCore.Design</div></div></div>
+      <p class="tiny">ან ტერმინალიდან: <code class="i">dotnet add package &lt;სახელი&gt;</code></p>
+    </div>
+  </div>
+  <div class="callout step mt" style="--a:var(--asp)">⚠ 4-ივე პაკეტი — <b>ერთი და იგივე ვერსია</b> (10.0.x), და ემთხვევა პროექტის <b>.NET 10</b>-ს</div>
+  <aside class="notes" data-cues="6"><div class="nl t">⏱ 0:40 · 4 წთ · ~ VS-ში: მარჯვენა კლიკი პროექტზე → Manage NuGet Packages</div><div class="nl say">პირველი ნაბიჯი: EF Core პროექტში ჯერ არ არის. ის NuGet პაკეტებად უნდა ჩამოვტვირთოთ — ოთხი პაკეტი.</div><div class="nl q">❓ გახსოვთ, რა არის NuGet? (.NET-ის „მაღაზია“ ბიბლიოთეკებისთვის.)</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>EntityFrameworkCore</div><div class="nl say">პირველი: Microsoft.EntityFrameworkCore — თვითონ EF Core, ძრავი.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>SqlServer</div><div class="nl say">მეორე: .SqlServer — SQL Server-თან ლაპარაკის ცოდნა.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>Tools</div><div class="nl say">მესამე: .Tools — მიგრაციის ბრძანებები Visual Studio-ს კონსოლში: Add-Migration და Update-Database.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>Design</div><div class="nl say">მეოთხე: .Design — ის, რაც მიგრაციის ფაილებს რეალურად აგენერირებს. ტერმინალიდან dotnet ef-ით მუშაობისთვისაც ესაა საჭირო.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>Package Manager Console</div><div class="nl say">იგივე შეიძლება ბრძანებებით: Tools → NuGet Package Manager → Package Manager Console. ოთხი ხაზი — და მზადაა.</div><div class="nl cue" data-c="6"><span class="ck">→ 6</span>ვერსია</div><div class="nl imp">ხშირი შეცდომა: ერთი პაკეტი 10, მეორე 9. ოთხივე ერთი ვერსიის უნდა იყოს და .NET-ის ვერსიას უნდა ემთხვეოდეს.</div><div class="nl dir">VS-ში დააყენე ოთხივე და აჩვენე Dependencies → Packages.</div></aside>
+</section>
+
+<!-- 16. STEP 1: WHAT EACH PACKAGE DOES -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="on">① პაკეტები</span><span>② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 1 / 4</div>
+  <h2>რას აკეთებს თითოეული პაკეტი?</h2>
+  <div class="grid2" style="gap:22px">
+    <div class="card accent step zoom" style="--a:var(--net)"><h3><span class="ico">⚙️</span><span class="mono" style="font-size:21px">EntityFrameworkCore</span></h3><p><b>ძრავი</b> — DbContext, DbSet, LINQ → SQL თარგმანი</p><p class="tiny mt" style="margin-top:10px">🏃 პროგრამის გაშვებისას</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp)"><h3><span class="ico">🗣️</span><span class="mono" style="font-size:21px">.SqlServer</span></h3><p><b>პროვაიდერი</b> — იცის SQL Server-ის „დიალექტი“. PostgreSQL-ს სხვა პროვაიდერი აქვს</p><p class="tiny mt" style="margin-top:10px">🏃 პროგრამის გაშვებისას</p></div>
+    <div class="card accent step zoom" style="--a:var(--core)"><h3><span class="ico">🧰</span><span class="mono" style="font-size:21px">.Tools</span></h3><p>ბრძანებები VS-ის კონსოლში: <code class="i">Add-Migration</code>, <code class="i">Update-Database</code></p><p class="tiny mt" style="margin-top:10px">👨‍💻 მხოლოდ დეველოპერს</p></div>
+    <div class="card accent step zoom" style="--a:var(--api)"><h3><span class="ico">📐</span><span class="mono" style="font-size:21px">.Design</span></h3><p>მიგრაციის ფაილების <b>გენერაცია</b> · საჭიროა <code class="i">dotnet ef</code>-საც</p><p class="tiny mt" style="margin-top:10px">👨‍💻 მხოლოდ დეველოპერს</p></div>
+  </div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 0:44 · 2 წთ</div><div class="nl say">რატომ ოთხი პაკეტი? ყოველს თავისი საქმე აქვს. ორი პროგრამის მუშაობისთვისაა, ორი — დეველოპერისთვის.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>ძრავი</div><div class="nl say">EntityFrameworkCore — ძრავი: DbContext, DbSet, LINQ-ის SQL-ად თარგმნა.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>SqlServer</div><div class="nl say">SqlServer — „პროვაიდერი“, თარჯიმანი კონკრეტულად SQL Server-ისთვის. სხვა ბაზას სხვა დიალექტი აქვს, ამიტომ სხვა პროვაიდერი.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>Tools</div><div class="nl say">Tools — მიგრაციის ბრძანებები Visual Studio-ს კონსოლში. პროგრამის გაშვებისას არ გამოიყენება.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>Design</div><div class="nl say">Design — ის, რაც მიგრაციის ფაილს რეალურად წერს. Tools მას იყენებს, ტერმინალის dotnet ef-იც.</div><div class="nl imp">ბაზის შეცვლა = პროვაიდერის შეცვლა. ძრავი და ჩვენი კოდი რჩება იგივე.</div><div class="nl dir">თუ ჰკითხავენ: SqlServer-ს ძრავი, Tools-ს კი Design თავისით მოყვება, ამიტომ ორიც იმუშავებდა. ოთხს ცალკე ვაყენებთ, რომ ჩანდეს, რა საიდან მოდის.</div></aside>
+</section>
+
+<!-- 17. STEP 2a: ENTITY -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="on">② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 2 / 4 · ჯერ Entity</div>
+  <h2>კლასი, რომელიც ცხრილი გახდება</h2>
+  <div class="grid2" style="grid-template-columns:1.15fr 1fr;align-items:start">
+    <div class="col">
+      <pre class="code big" id="ent"><span class="ttl">Product.cs</span><code><span class="ln"><span class="k">namespace</span><span class="w"> </span><span class="nn">ShopDemo</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="k">public</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">Product</span></span><span class="ln"><span class="p">{</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">Id</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="n">Name</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span><span class="p">.</span><span class="n">Empty</span><span class="p">;</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">decimal</span><span class="w"> </span><span class="n">Price</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="p">}</span></span><span class="ln"><span class="w">      </span></span></code></pre>
+    </div>
+    <div class="col" style="gap:16px">
+      <i class="codestep" data-for="ent" data-lines="3-4,8"></i>
+      <div class="callout step" data-with style="--a:var(--net)"><b>class Product</b> → ცხრილი <b>Products</b></div>
+      <i class="codestep" data-for="ent" data-lines="5"></i>
+      <div class="callout step" data-with style="--a:var(--core)"><b>Id</b> — EF თვითონ ხვდება: ეს <b>Primary Key</b>-ია, IDENTITY-თი</div>
+      <i class="codestep" data-for="ent" data-lines="6-7"></i>
+      <div class="callout step" data-with style="--a:var(--asp)">C#-ის ტიპი → <b>SQL-ის ტიპი</b> ავტომატურად</div>
+      <i class="codestep" data-for="ent" data-lines="all"></i>
+      <table class="t step fade" data-with style="font-size:18px"><tr><th>სვეტი</th><th>SQL ტიპი</th><th></th></tr>
+        <tr><td class="mono">Id</td><td class="mono">int IDENTITY</td><td>🔑 PK</td></tr>
+        <tr><td class="mono">Name</td><td class="mono">nvarchar(max)</td><td>NOT NULL</td></tr>
+        <tr><td class="mono">Price</td><td class="mono">decimal(18,2)</td><td>NOT NULL</td></tr></table>
+    </div>
+  </div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 0:46 · 3 წთ · ~ VS-ში: Add → Class → Product.cs</div><div class="nl say">მეორე ნაბიჯი ორ ნაწილად: ჯერ Entity, მერე DataContext. ვიწყებთ Entity-ით — ის კლასი, რომელიც ცხრილი გახდება.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>კლასი</div><div class="nl say">ჩვეულებრივი C#-ის კლასია. არაფერი განსაკუთრებული. class Product → ცხრილი Products.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>Id</div><div class="nl imp">ყურადღება: property-ს სახელი Id. EF Core-ს აქვს შეთანხმება: Id ან ProductId — ეს არის Primary Key, და IDENTITY-თი ავტომატურად იზრდება. Id-ს თუ დაგავიწყდათ — EF შეცდომას მოგცემთ.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>Name და Price</div><div class="nl say">C#-ის ტიპებს EF თვითონ თარგმნის SQL-ის ტიპებად: string → nvarchar, decimal → decimal(18,2).</div><div class="nl dir">= string.Empty — რომ Name null არ იყოს; ამიტომ სვეტი NOT NULL იქნება.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>ცხრილი</div><div class="nl say">აი, როგორი ცხრილი გამოვა ამ კლასიდან. ჯერ არ შექმნილა — ესაა ის, რაც მიგრაციის შემდეგ გაჩნდება.</div></aside>
+</section>
+
+<!-- 18. STEP 2b: DATACONTEXT -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="on">② DataContext</span><span>③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 2 / 4 · ახლა DataContext</div>
+  <h2>ბაზის კლასი — <span class="c-core">DataContext</span></h2>
+  <div class="grid2" style="grid-template-columns:1.15fr 1fr;align-items:start">
+    <pre class="code big" id="ctx"><span class="ttl">DataContext.cs</span><code><span class="ln"><span class="k">using</span><span class="w"> </span><span class="nn">Microsoft.EntityFrameworkCore</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="k">namespace</span><span class="w"> </span><span class="nn">ShopDemo</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="k">public</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">DataContext</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">DbContext</span></span><span class="ln"><span class="p">{</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="n">DbSet</span><span class="o">&lt;</span><span class="n">Product</span><span class="o">&gt;</span><span class="w"> </span><span class="n">Products</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="p">}</span></span><span class="ln"><span class="w">    </span></span></code></pre>
+    <div class="col" style="gap:16px">
+      <i class="codestep" data-for="ctx" data-lines="1"></i>
+      <div class="callout step" data-with style="--a:var(--muted)"><b>using</b> — EF Core-ის კლასები პაკეტიდან</div>
+      <i class="codestep" data-for="ctx" data-lines="5"></i>
+      <div class="callout step" data-with style="--a:var(--core)"><b>: DbContext</b> — მემკვიდრეობით ჩვენი კლასი ხდება ბაზის <b>„პულტი“</b></div>
+      <i class="codestep" data-for="ctx" data-lines="7"></i>
+      <div class="callout step" data-with style="--a:var(--api)"><b>DbSet&lt;Product&gt; Products</b> — ცხრილი. property-ს სახელი = <b>ცხრილის სახელი</b></div>
+      <i class="codestep" data-for="ctx" data-lines="all"></i>
+      <div class="solve step" data-with>ახალი ცხრილი? → კიდევ ერთი <b>DbSet</b> ხაზი</div>
+    </div>
+  </div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 0:49 · 3 წთ · ~ VS-ში: Add → Class → DataContext.cs</div><div class="nl say">ახლა მთავარი კლასი — DataContext. სახელი ჩვენი არჩეულია, ხშირად AppDbContext-საც არქმევენ.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>using</div><div class="nl say">ჯერ using Microsoft.EntityFrameworkCore — ამ პაკეტიდან მოდის DbContext და DbSet. პირველი ნაბიჯის გარეშე ეს ხაზი წითელი იქნებოდა.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>: DbContext</div><div class="nl imp">ყველაზე მნიშვნელოვანი: ჩვენი კლასი DbContext-ისგან მემკვიდრეობით იღებს ყველაფერს — კავშირს, თარგმანს, შენახვას. ჩვენ მხოლოდ ვეუბნებით, რა ცხრილები გვაქვს.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>DbSet</div><div class="nl say">DbSet&lt;Product&gt; Products — ეს არის ცხრილი Products. property-ს სახელი ხდება ცხრილის სახელი.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>ახალი ცხრილი</div><div class="nl say">ხვალ კატეგორიებიც დაგვჭირდება? კიდევ ერთი ხაზი: DbSet&lt;Category&gt; Categories. სულ ესაა.</div><div class="nl q">❓ ჯერ რა აკლია ჩვენს DataContext-ს? (არ იცის, სად არის ბაზა! — ეს მესამე ნაბიჯია.)</div></aside>
+</section>
+
+<!-- 19. STEP 3a: COPY FROM VISUAL STUDIO -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="on">③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 3 / 4 · Connection String</div>
+  <h2>Connection String-ს <span class="c-net">Visual Studio</span>-დან ვიღებთ</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1.1fr;align-items:start">
+    <div class="mock step left">
+      <div class="mh">View → SQL Server Object Explorer</div>
+      <div class="mb tree"><span class="n"><i>🖥️</i>SQL Server</span><span class="n lvl1 hi" style="background:color-mix(in srgb,var(--net) 10%,#fff);border-radius:8px"><i>🗄️</i>(localdb)\MSSQLLocalDB</span><span class="n lvl2"><i>📁</i>Databases</span><span class="n lvl2"><i>📁</i>Security</span></div>
+    </div>
+    <ol class="col" style="gap:14px;list-style:none">
+      <li class="card step right row" style="align-items:center;gap:18px;padding:16px 22px"><span class="verb" style="--a:var(--net);font-size:38px">1</span><p>გახსენი <b>SQL Server Object Explorer</b></p></li>
+      <li class="card step right row" style="align-items:center;gap:18px;padding:16px 22px"><span class="verb" style="--a:var(--net);font-size:38px">2</span><p>სერვერზე მარჯვენა კლიკი → <b>Properties</b></p></li>
+      <li class="card step right row" style="align-items:center;gap:18px;padding:16px 22px"><span class="verb" style="--a:var(--net);font-size:38px">3</span><p><b>Connection String</b> → დააკოპირე 📋</p></li>
+    </ol>
+  </div>
+  <div class="solve step mt">სტრიქონს ხელით არ ვწერთ — <b>Visual Studio მზას გვაძლევს</b></div>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 0:52 · 3 წთ · ~ VS-ში: View → SQL Server Object Explorer</div><div class="nl say">მესამე ნაბიჯი: DataContext-ს უნდა ვუთხრათ, სად არის ბაზა. ამას ჰქვია Connection String — კავშირის სტრიქონი.</div><div class="nl say">კარგი ამბავი: მას ხელით არ ვწერთ. Visual Studio მზას გვაძლევს.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Object Explorer</div><div class="nl say">გახსენით View → SQL Server Object Explorer. აქ ჩანს თქვენი SQL Server.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>1</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>2</div><div class="nl say">სერვერზე მარჯვენა კლიკი → Properties.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>3</div><div class="nl say">Properties ფანჯარაში არის ველი Connection String. დააკოპირეთ მთლიანად.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>დასკვნა</div><div class="nl imp">სტრიქონს ხელით არ ვწერთ — ვაკოპირებთ.</div></aside>
+</section>
+
+<!-- 21. STEP 3b: OnConfiguring -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="on">③ Connection</span><span>④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 3 / 4 · ჩასმა კოდში</div>
+  <h2>DataContext-ს ვეუბნებით, სად არის ბაზა</h2>
+  <pre class="code" id="conf"><span class="ttl">DataContext.cs</span><code><span class="ln"><span class="k">public</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">DataContext</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">DbContext</span></span><span class="ln"><span class="p">{</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="n">DbSet</span><span class="o">&lt;</span><span class="n">Product</span><span class="o">&gt;</span><span class="w"> </span><span class="n">Products</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"> </span><span class="ln"><span class="w">    </span><span class="k">protected</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="k">void</span><span class="w"> </span><span class="nf">OnConfiguring</span><span class="p">(</span><span class="n">DbContextOptionsBuilder</span><span class="w"> </span><span class="n">options</span><span class="p">)</span></span><span class="ln"><span class="w">    </span><span class="p">{</span></span><span class="ln"><span class="w">        </span><span class="n">options</span><span class="p">.</span><span class="n">UseSqlServer</span><span class="p">(</span><span class="s">@"აქ ჩასვი VS-დან დაკოპირებული სტრიქონი"</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="w">    </span><span class="p">}</span></span><span class="ln"><span class="p">}</span></span><span class="ln"><span class="w">  </span></span></code></pre>
+  <div class="grid3 mt" style="gap:18px">
+    <i class="codestep" data-for="conf" data-lines="5-6,8"></i>
+    <div class="callout step" data-with style="--a:var(--core);font-size:19px"><b>OnConfiguring</b> — EF აქ კითხულობს პარამეტრებს</div>
+    <i class="codestep" data-for="conf" data-lines="7"></i>
+    <div class="callout step" data-with style="--a:var(--asp);font-size:19px"><b>UseSqlServer</b> — SqlServer პაკეტიდან მოდის</div>
+    <div class="callout step" style="--a:var(--api);font-size:19px"><b>@</b> სტრიქონის წინ — VS-ის სტრიქონში <b>\</b> არის</div>
+  </div>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 0:55 · 3 წთ · ~ VS-ში: DataContext-ში დაწერე override და აირჩიე OnConfiguring</div><div class="nl say">ახლა დაკოპირებული სტრიქონი DataContext-ში ჩავსვათ.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>OnConfiguring</div><div class="nl say">OnConfiguring — DbContext-ის მეთოდი, რომელსაც override-ით ვცვლით. EF Core მას იძახებს, როცა ბაზასთან კავშირი სჭირდება.</div><div class="nl dir">VS-ში დაწერე override, Space — სიიდან აირჩიე OnConfiguring.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>UseSqlServer</div><div class="nl say">UseSqlServer — „გამოიყენე SQL Server“. ეს მეთოდი სწორედ SqlServer პაკეტიდან მოდის. ფრჩხილებში ვსვამთ ჩვენს სტრიქონს.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>@</div><div class="nl imp">სტრიქონის წინ @ აუცილებლად: სერვერის სახელში \ არის, C#-ში კი \ სპეციალური სიმბოლოა.</div><div class="nl dir">ჩასმის შემდეგ სტრიქონში ბაზის სახელი (Initial Catalog) ShopDb უნდა იყოს — master-ზე თუ დარჩა, ცხრილი master-ში შეიქმნება.</div><div class="nl dir">კონსოლში appsettings.json არ გვაქვს, ამიტომ სტრიქონი პირდაპირ აქ წერია. API-ში მას appsettings.json-ში გადავიტანთ.</div></aside>
+</section>
+
+<!-- 22. STEP 4a: MIGRATION CONCEPT -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="on">④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 4 / 4 · იდეა</div>
+  <h2>მიგრაცია: ჯერ <span class="c-api">ნახაზი</span>, მერე <span class="c-asp">მშენებლობა</span></h2>
+  <svg viewBox="0 0 1420 440" width="1420" height="440">
+    <g class="in" style="--d:.2s"><rect x="10" y="90" width="300" height="200" rx="20" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/>
+      <text x="160" y="160" text-anchor="middle" font-size="46">📄</text><text x="160" y="212" text-anchor="middle" class="tn b" font-size="22">ჩვენი კოდი</text>
+      <text x="160" y="248" text-anchor="middle" class="tm mono" font-size="16">Product · DataContext</text></g>
+    <g class="step fade draw">
+      <path d="M320 190 H530" stroke="#2563eb" stroke-width="4" fill="none"/><polygon points="530,178 550,190 530,202" fill="#2563eb"/>
+      <rect x="350" y="130" width="160" height="40" rx="10" fill="#2563eb"/><text x="430" y="157" text-anchor="middle" class="mono b" font-size="16" style="fill:#fff">Add-Migration</text>
+      <g class="late" style="--ld:.7s"><rect x="560" y="90" width="300" height="200" rx="20" fill="#eaf2fe" stroke="#2563eb" stroke-width="3" stroke-dasharray="10 6"/>
+      <text x="710" y="160" text-anchor="middle" font-size="46">📐</text><text x="710" y="212" text-anchor="middle" class="tb b" font-size="22">ნახაზი</text>
+      <text x="710" y="248" text-anchor="middle" class="tm mono" font-size="16">InitialCreate.cs</text>
+      <text x="710" y="340" text-anchor="middle" class="tm" font-size="18">ბაზას ჯერ არ ეხება!</text></g>
+    </g>
+    <g class="step fade draw">
+      <path d="M870 190 H1080" stroke="#d97706" stroke-width="4" fill="none"/><polygon points="1080,178 1100,190 1080,202" fill="#d97706"/>
+      <rect x="885" y="130" width="180" height="40" rx="10" fill="#d97706"/><text x="975" y="157" text-anchor="middle" class="mono b" font-size="16" style="fill:#fff">Update-Database</text>
+      <g class="late" style="--ld:.7s"><path d="M1120 90 v190 a145 28 0 0 0 290 0 v-190" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="1265" cy="90" rx="145" ry="28" fill="#fef5e4" stroke="#d97706" stroke-width="3"/>
+      <text x="1265" y="175" text-anchor="middle" font-size="46">🏗️</text><text x="1265" y="225" text-anchor="middle" class="to b" font-size="22">ShopDb</text>
+      <text x="1265" y="258" text-anchor="middle" class="tm mono" font-size="16">+ ცხრილი Products</text>
+      <text x="1265" y="360" text-anchor="middle" class="tm" font-size="18">ბაზა ახლა იცვლება</text></g>
+    </g>
+  </svg>
+  <div class="callout step" style="--a:var(--core)">კოდი შეიცვალა? → <b>ახალი მიგრაცია</b> → Update-Database. მიგრაციები — ბაზის <b>ცვლილებების ისტორია</b>, როგორც Git კოდისთვის.</div>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 1:01 · 2 წთ</div><div class="nl say">ბოლო ნაბიჯი — მიგრაცია. ჯერ იდეა, მერე ბრძანებები.</div><div class="nl say">კოდი გვაქვს: Product და DataContext. ბაზა ჯერ არ არსებობს.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Add-Migration</div><div class="nl say">პირველი ბრძანება — Add-Migration. ის ჩვენს კოდს კითხულობს და წერს ნახაზს: „ბაზაში უნდა შეიქმნას ცხრილი Products, ამ სვეტებით“.</div><div class="nl imp">ყურადღება: Add-Migration ბაზას არ ეხება! მხოლოდ ფაილს ქმნის პროექტში.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>Update-Database</div><div class="nl say">მეორე — Update-Database. ის იღებს ნახაზს და ააშენებს: ქმნის ბაზას ShopDb და ცხრილს Products.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>ისტორია</div><div class="nl say">ხვალ Product-ს ახალ property-ს დავამატებთ — ახალი მიგრაცია, ისევ Update-Database. მიგრაციები ბაზის ისტორიას ინახავს — ისე, როგორც Git კოდისას.</div></aside>
+</section>
+
+<!-- 23. STEP 4b: COMMANDS -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="on">④ მიგრაცია</span></div>
+  <div class="kicker">ნაბიჯი 4 / 4 · ბრძანებები</div>
+  <h2>ორი ბრძანება Package Manager Console-ში</h2>
+  <div style="display:grid;grid-template-columns:1.35fr 1fr;column-gap:36px;row-gap:0;align-items:start">
+    <div class="term" style="grid-column:1;grid-row:1;border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:0"><div class="bar"><i></i><i></i><i></i><span>Package Manager Console · Default project: ShopDemo</span></div>
+      <div class="body" style="min-height:150px"><div class="step fade"><div class="pm"><span class="typing">Add-Migration InitialCreate</span></div>
+        <div class="out late" style="--ld:1.4s">Build started...<br>Build succeeded.<br>To undo this action, use Remove-Migration.</div></div></div></div>
+    <div class="mock step right" style="grid-column:2;grid-row:1 / span 2">
+      <div class="mh">Solution Explorer</div>
+      <div class="mb tree" style="font-size:17px">
+        <span class="n"><i>📦</i>ShopDemo</span>
+        <span class="n lvl1 hi"><i>📁</i>Migrations <span class="tag" style="--a:var(--mvc);font-size:11px">NEW</span></span>
+        <span class="n lvl2"><i>📄</i>…_InitialCreate.cs</span>
+        <span class="n lvl2"><i>📄</i>…_InitialCreate.Designer.cs</span>
+        <span class="n lvl2"><i>📄</i>DataContextModelSnapshot.cs</span>
+        <span class="n lvl1"><i>📄</i>DataContext.cs</span>
+        <span class="n lvl1"><i>📄</i>Product.cs</span>
+      </div>
+    </div>
+    <div class="term" style="grid-column:1;grid-row:2;border-top:0;border-top-left-radius:0;border-top-right-radius:0">
+      <div class="body" style="min-height:190px;padding-top:0"><div class="step fade"><div class="pm"><span class="typing">Update-Database</span></div>
+        <div class="out late" style="--ld:1s">Build started...<br>Build succeeded.<br>Applying migration '20261022_InitialCreate'.<br><span class="ok">Done.</span></div></div></div></div>
+    <div class="callout step" style="grid-column:2;grid-row:3;--a:var(--muted);font-size:18px;margin-top:16px">CLI-ით: <code class="i">dotnet ef migrations add InitialCreate</code> · <code class="i">dotnet ef database update</code> <span class="tiny">(საჭიროა <code class="i">dotnet tool install -g dotnet-ef</code>)</span></div>
+  </div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 1:03 · 4 წთ · ~ VS-ში: Tools → NuGet Package Manager → Package Manager Console</div><div class="nl say">ბრძანებებს Package Manager Console-ში ვწერთ. ! ზემოთ შეამოწმეთ Default project — ჩვენი პროექტი უნდა ეწეროს.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Add-Migration</div><div class="nl say">Add-Migration და მიგრაციის სახელი. პირველს ტრადიციულად InitialCreate ჰქვია. სახელი აღწერს, რა შეიცვალა — როგორც commit message.</div><div class="nl say">ბრძანება ჯერ პროექტს აბილდებს. კოდში შეცდომა თუ გაქვთ — მიგრაცია არ შეიქმნება.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>Migrations ფოლდერი</div><div class="nl say">პროექტში გაჩნდა ფოლდერი Migrations. მთავარი ფაილი InitialCreate.cs — ჩვენი ნახაზი. ბაზა ჯერ ისევ არ არსებობს!</div><div class="nl dir">აჩვენე Solution Explorer-ში.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>Update-Database</div><div class="nl say">ახლა Update-Database. Done — ბაზა შეიქმნა!</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>CLI</div><div class="nl say">იგივე შეიძლება ტერმინალიდან dotnet ef ბრძანებებით. ამისთვის ერთხელ dotnet-ef ხელსაწყო უნდა დააყენოთ. ჩვენ PMC-ს ვიყენებთ.</div></aside>
+</section>
+
+<!-- 24. MIGRATION FILE vs SQL -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="on">④ მიგრაცია</span></div>
+  <div class="kicker">ნახაზის შიგნით</div>
+  <h2>მიგრაცია = <span class="c-asp">CREATE TABLE</span>, ოღონდ C#-ში</h2>
+  <div class="grid2" style="grid-template-columns:1.35fr 1fr;align-items:start">
+    <pre class="code xs"><span class="ttl">Migrations/…_InitialCreate.cs · Up()</span><code><span class="ln"><span class="n">migrationBuilder</span><span class="p">.</span><span class="n">CreateTable</span><span class="p">(</span></span><span class="ln"><span class="w">    </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="s">"Products"</span><span class="p">,</span></span><span class="ln"><span class="w">    </span><span class="n">columns</span><span class="p">:</span><span class="w"> </span><span class="n">table</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="k">new</span></span><span class="ln"><span class="w">    </span><span class="p">{</span></span><span class="ln"><span class="w">        </span><span class="n">Id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">table</span><span class="p">.</span><span class="n">Column</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="p">(</span><span class="n">type</span><span class="p">:</span><span class="w"> </span><span class="s">"int"</span><span class="p">,</span><span class="w"> </span><span class="n">nullable</span><span class="p">:</span><span class="w"> </span><span class="k">false</span><span class="p">)</span></span><span class="ln"><span class="w">            </span><span class="p">.</span><span class="n">Annotation</span><span class="p">(</span><span class="s">"SqlServer:Identity"</span><span class="p">,</span><span class="w"> </span><span class="s">"1, 1"</span><span class="p">)</span><span class="p">,</span></span><span class="ln"><span class="w">        </span><span class="n">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">table</span><span class="p">.</span><span class="n">Column</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;</span><span class="p">(</span><span class="n">type</span><span class="p">:</span><span class="w"> </span><span class="s">"nvarchar(max)"</span><span class="p">,</span><span class="w"> </span><span class="n">nullable</span><span class="p">:</span><span class="w"> </span><span class="k">false</span><span class="p">)</span><span class="p">,</span></span><span class="ln"><span class="w">        </span><span class="n">Price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">table</span><span class="p">.</span><span class="n">Column</span><span class="o">&lt;</span><span class="kt">decimal</span><span class="o">&gt;</span><span class="p">(</span><span class="n">type</span><span class="p">:</span><span class="w"> </span><span class="s">"decimal(18,2)"</span><span class="p">,</span><span class="w"> </span><span class="n">nullable</span><span class="p">:</span><span class="w"> </span><span class="k">false</span><span class="p">)</span></span><span class="ln"><span class="w">    </span><span class="p">}</span><span class="p">,</span></span><span class="ln"><span class="w">    </span><span class="n">constraints</span><span class="p">:</span><span class="w"> </span><span class="n">table</span><span class="w"> </span><span class="o">=&gt;</span></span><span class="ln"><span class="w">    </span><span class="p">{</span></span><span class="ln"><span class="w">        </span><span class="n">table</span><span class="p">.</span><span class="n">PrimaryKey</span><span class="p">(</span><span class="s">"PK_Products"</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">x</span><span class="p">.</span><span class="n">Id</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="w">    </span><span class="p">}</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="w">    </span></span></code></pre>
+    <div class="col step right">
+      <pre class="code sm"><span class="ttl">რაც ჩვენ SSMS-ში დავწერდით</span><code><span class="ln"><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">Products</span><span class="w"> </span><span class="p">(</span></span><span class="ln"><span class="w">    </span><span class="n">Id</span><span class="w"> </span><span class="nb">INT</span><span class="w"> </span><span class="k">IDENTITY</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span></span><span class="ln"><span class="w">    </span><span class="n">Name</span><span class="w"> </span><span class="n">NVARCHAR</span><span class="p">(</span><span class="k">MAX</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span></span><span class="ln"><span class="w">    </span><span class="n">Price</span><span class="w"> </span><span class="nb">DECIMAL</span><span class="p">(</span><span class="mi">18</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span></span><span class="ln"><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="w">      </span></span></code></pre>
+      <div class="solve">იგივეა! უბრალოდ <b>EF Core-მა დაწერა</b></div>
+    </div>
+  </div>
+  <div class="callout step mt" style="--a:var(--core)">ფაილში ასევე არის <b>Down()</b> — მიგრაციის უკან დაბრუნება: <code class="i">DropTable("Products")</code></div>
+  <aside class="notes" data-cues="2"><div class="nl t">⏱ 1:07 · 2 წთ · ~ VS-ში გახსენი InitialCreate.cs</div><div class="nl say">შევიხედოთ ნახაზში. ერთი შეხედვით უცნაურია, მაგრამ...</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>SQL შედარება</div><div class="nl say">...მარჯვნივ ის, რასაც ჩვენ ხელით დავწერდით SSMS-ში. ? შეადარეთ: Products, Id IDENTITY, Name nvarchar, Price decimal, Primary Key. ! იგივეა.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>Down</div><div class="nl say">ფაილში არის ორი მეთოდი: Up — რა გავაკეთოთ, Down — როგორ დავაბრუნოთ უკან. Down ცხრილს წაშლის.</div><div class="nl dir">მიგრაციის ფაილს ხელით არ ვასწორებთ, თუ ზუსტად არ ვიცით, რას ვაკეთებთ.</div></aside>
+</section>
+
+<!-- 25. RESULT IN SSMS -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="stepper"><span class="done">① ✓</span><span class="done">② ✓</span><span class="done">③ ✓</span><span class="done">④ ✓</span></div>
+  <div class="kicker">შედეგი</div>
+  <h2>ვამოწმებთ <span class="c-asp">SSMS</span>-ში 🎉</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1fr;align-items:start">
+    <div class="mock"><div class="mh">SSMS · Object Explorer</div>
+      <div class="mb tree">
+        <span class="n"><i>🖥️</i>localhost</span>
+        <span class="n lvl1"><i>📁</i>Databases</span>
+        <span class="n lvl2 hi step fade"><i>🗄️</i>ShopDb <span class="tag" style="--a:var(--mvc);font-size:11px">NEW</span></span>
+        <span class="n lvl3 step fade"><i>📁</i>Tables</span>
+        <span class="n lvl4 step fade" data-with><i>▦</i>dbo.__EFMigrationsHistory</span>
+        <span class="n lvl4 hi step fade" data-with><i>▦</i>dbo.Products</span>
+        <span class="n lvl4 step fade" style="padding-left:150px;font-size:17px">🔑 Id (PK, int, not null)</span>
+        <span class="n step fade" data-with style="padding-left:150px;font-size:17px">Name (nvarchar(max), not null)</span>
+        <span class="n step fade" data-with style="padding-left:150px;font-size:17px">Price (decimal(18,2), not null)</span>
+      </div></div>
+    <div class="col step right" style="gap:16px">
+      <div class="card accent" style="--a:var(--core)"><h3 class="mono" style="font-size:22px">__EFMigrationsHistory</h3><p>EF Core-ის <b>„დღიური“</b>: რომელი მიგრაციები უკვე გაეშვა ამ ბაზაზე</p></div>
+      <table class="t" style="font-size:16px"><tr><th>MigrationId</th><th>ProductVersion</th></tr><tr><td class="mono" style="font-weight:400">20261022…_InitialCreate</td><td class="mono">10.0.x</td></tr></table>
+    </div>
+  </div>
+  <aside class="notes" data-cues="4"><div class="nl t">⏱ 1:09 · 2 წთ · ~ SSMS-ში: Databases → Refresh</div><div class="nl say">ახლა SSMS-ში ვნახოთ, რა მოხდა. Databases-ზე Refresh.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>ShopDb</div><div class="nl imp">აი, ჩვენი ბაზა ShopDb. ჩვენ ის არ შეგვიქმნია — ჩვენმა C#-მა შექმნა.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>ცხრილები</div><div class="nl say">Tables-ში ორი ცხრილია. Products — ჩვენი. და __EFMigrationsHistory — EF-ის.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>სვეტები</div><div class="nl say">Products-ის სვეტები ზუსტად ჩვენი კლასის property-ებია: Id — Primary Key, Name, Price.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>დღიური</div><div class="nl say">__EFMigrationsHistory — EF Core-ის დღიური. აქ წერია, რომელი მიგრაციები გაეშვა. მომავალში Update-Database-ს ამ ცხრილით ესმის, რა არის ახალი და რა — უკვე შესრულებული.</div></aside>
+</section>
+
+<!-- 26. PAYOFF: USE IT -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="kicker">ჯილდო</div>
+  <h2>ახლა გამოვიყენოთ — <span class="c-core">Program.cs</span></h2>
+  <div class="grid2" style="grid-template-columns:1.3fr 1fr;align-items:start">
+    <pre class="code sm" id="prg"><span class="ttl">Program.cs</span><code><span class="ln"><span class="k">using</span><span class="w"> </span><span class="nn">ShopDemo</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="n">Console</span><span class="p">.</span><span class="n">OutputEncoding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span><span class="p">.</span><span class="n">Text</span><span class="p">.</span><span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="k">using</span><span class="w"> </span><span class="nn">var</span><span class="w"> </span><span class="n">db</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">DataContext</span><span class="p">(</span><span class="p">)</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="n">db</span><span class="p">.</span><span class="n">Products</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">Product</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"ლეპტოპი"</span><span class="p">,</span><span class="w"> </span><span class="n">Price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2400</span><span class="w"> </span><span class="p">}</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="n">db</span><span class="p">.</span><span class="n">Products</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">Product</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"მაუსი"</span><span class="p">,</span><span class="w"> </span><span class="n">Price</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">45</span><span class="w"> </span><span class="p">}</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="n">db</span><span class="p">.</span><span class="n">SaveChanges</span><span class="p">(</span><span class="p">)</span><span class="p">;</span></span><span class="ln"> </span><span class="ln"><span class="k">foreach</span><span class="w"> </span><span class="p">(</span><span class="kt">var</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">db</span><span class="p">.</span><span class="n">Products</span><span class="p">.</span><span class="n">ToList</span><span class="p">(</span><span class="p">)</span><span class="p">)</span></span><span class="ln"><span class="w">    </span><span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">$"{p.Id}. {p.Name} — {p.Price} ₾"</span><span class="p">)</span><span class="p">;</span></span><span class="ln"><span class="w">    </span></span></code></pre>
+    <div class="col" style="gap:14px">
+      <i class="codestep" data-for="prg" data-lines="5"></i>
+      <div class="callout step" data-with style="--a:var(--core);font-size:19px"><b>new DataContext()</b> — ვიღებთ „პულტს“</div>
+      <i class="codestep" data-for="prg" data-lines="7-8"></i>
+      <div class="callout step" data-with style="--a:var(--net);font-size:19px"><b>Add</b> — ჯერ მხოლოდ მეხსიერებაში</div>
+      <i class="codestep" data-for="prg" data-lines="9"></i>
+      <div class="callout step" data-with style="--a:var(--asp);font-size:19px"><b>SaveChanges()</b> — ახლა მიდის <b>INSERT</b> ბაზაში</div>
+      <i class="codestep" data-for="prg" data-lines="11-12"></i>
+      <div class="term step" data-with><div class="bar"><i></i><i></i><i></i><span>ShopDemo</span></div><div class="body">1. ლეპტოპი — 2400 ₾<br>2. მაუსი — 45 ₾</div></div>
+      <i class="codestep" data-for="prg" data-lines="3"></i>
+      <div class="callout step" data-with style="--a:var(--muted);font-size:17px">ქართული კონსოლში <b>???</b>-ად ჩანს? → ეს ხაზი</div>
+    </div>
+  </div>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 1:11 · 4 წთ · ~ VS-ში: Program.cs, F5, შემდეგ SSMS-ში SELECT * FROM Products</div><div class="nl say">ოთხივე ნაბიჯი გავიარეთ. ახლა ჯილდო: ჩვენი C# ბაზაში წერს და ბაზიდან კითხულობს.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>DataContext</div><div class="nl say">ვქმნით DataContext-ს — ვიღებთ „პულტს“. using იმიტომ, რომ ბოლოს კავშირი თავისით დაიხუროს.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>Add</div><div class="nl say">Add — ჩვეულებრივი C#-ის ობიექტებს ვამატებთ. SQL არსად. ! ჯერ ბაზაში არაფერი წასულა.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>SaveChanges</div><div class="nl imp">SaveChanges — მხოლოდ ახლა აგზავნის EF Core INSERT-ებს. დაგავიწყდათ SaveChanges — ბაზაში არაფერი ჩაიწერება. ყველაზე ხშირი შეცდომაა.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>წაკითხვა</div><div class="nl say">ToList — SELECT. ბეჭდავს ორივე პროდუქტს. შეამჩნიეთ: Id-ები ჩვენ არ მიგვიცია — ბაზამ IDENTITY-თი მისცა.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>ქართული შრიფტი</div><div class="nl say">Windows-ის კონსოლში ქართული შეიძლება კითხვის ნიშნებად ჩანდეს — ამიტომ პირველ ხაზში OutputEncoding.</div><div class="nl dir">SSMS-ში გაუშვი SELECT * FROM Products — ჩანაწერები იქ არიან.</div></aside>
+</section>
+
+<!-- 27. RECAP 4 STEPS -->
+<section class="slide" data-section="4 · 4 ნაბიჯი">
+  <div class="kicker">შეჯამება</div>
+  <h2>4 ნაბიჯი — ყოველ ახალ პროექტში</h2>
+  <div class="grid4" style="margin-top:20px">
+    <div class="card accent step zoom" style="--a:var(--core);text-align:center"><div class="verb" style="--a:var(--core)">1</div><h3 style="justify-content:center">პაკეტები</h3><p class="small">EF Core · SqlServer · Tools · Design</p></div>
+    <div class="card accent step zoom" style="--a:var(--net);text-align:center"><div class="verb" style="--a:var(--net)">2</div><h3 style="justify-content:center">DataContext</h3><p class="small">Entity + DbContext + DbSet</p></div>
+    <div class="card accent step zoom" style="--a:var(--api);text-align:center"><div class="verb" style="--a:var(--api)">3</div><h3 style="justify-content:center">Connection</h3><p class="small">სტრიქონი VS-დან → UseSqlServer</p></div>
+    <div class="card accent step zoom" style="--a:var(--asp);text-align:center"><div class="verb" style="--a:var(--asp)">4</div><h3 style="justify-content:center">მიგრაცია</h3><p class="small">Add-Migration + Update-Database</p></div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--mvc);font-size:26px;text-align:center;border-left:0;border-radius:16px;padding:22px">შემდეგ ყოველ ცვლილებაზე: <b>შეცვალე კლასი → Add-Migration → Update-Database</b></div>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 1:15 · 2 წთ</div><div class="nl say">შევაჯამოთ. ? ვინ მეტყვის ზეპირად ოთხ ნაბიჯს? — ჯერ კითხე, მერე → თითოეულზე.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>1 პაკეტები</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>2 DataContext</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>3 Connection String</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>4 მიგრაცია</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>შემდგომი ცვლილებები</div><div class="nl imp">ეს ოთხი ნაბიჯი პროექტში ერთხელ კეთდება. შემდეგ ყოველ ცვლილებაზე მხოლოდ ბოლო ნაბიჯი მეორდება: კლასი შეცვალე → Add-Migration → Update-Database.</div></aside>
+</section>
+
+<!-- ============ PART 5: PRACTICE ============ -->
+<section class="slide divider" data-section="5 · პრაქტიკა">
+  <div class="vcenter">
+    <div class="kicker in">ნაწილი 5</div>
+    <h1 class="in" style="--d:.1s">ახლა <span class="grad">თქვენი ჯერია</span></h1>
+    <p class="lead mt in" style="--d:.3s">ორ რაუნდად: ჯერ ერთად, მერე დამოუკიდებლად</p>
+  </div>
+  <div class="big-num">05</div>
+  <aside class="notes" data-cues="0"><div class="nl t">⏱ 1:17</div><div class="nl say">პირველი რაუნდი — „მე ვაკეთებ“ — უკვე გავიარეთ. ახლა დანარჩენი ორი.</div></aside>
+</section>
+
+<!-- 28. I DO / WE DO / YOU DO -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">სამი რაუნდი</div>
+  <h2>მე → ერთად → თქვენ</h2>
+  <div class="grid3" style="margin-top:20px">
+    <div class="card accent phase in" style="--a:var(--muted);--d:.2s;opacity:.65"><div class="em">👨‍🏫</div><h3 style="justify-content:center">მე ვაკეთებ</h3><p class="small">თქვენ უყურებთ და იგებთ</p><p class="tt mt" style="margin-top:12px">ShopDemo · ✓ დასრულდა</p></div>
+    <div class="card accent phase step zoom" style="--a:var(--api)"><div class="em">👥</div><h3 style="justify-content:center">ერთად ვაკეთებთ</h3><p class="small">ნაბიჯ-ნაბიჯ, ერთ ტემპში</p><p class="tt mt" style="margin-top:12px">LibraryDemo · ~17 წთ</p></div>
+    <div class="card accent phase step zoom" style="--a:var(--mvc)"><div class="em">🧑‍💻</div><h3 style="justify-content:center">თქვენ აკეთებთ</h3><p class="small">დამოუკიდებლად, მე ვეხმარები</p><p class="tt mt" style="margin-top:12px">SchoolDemo · ~15 წთ</p></div>
+  </div>
+  <div class="callout step mt2" style="--a:var(--asp)">წესი: <b>ჯერ ცდი თვითონ</b>, გაჭედე — გვერდით მჯდომს ჰკითხე, მერე — მე. შეცდომა ნორმალურია 🙂</div>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 1:17 · 1 წთ</div><div class="nl say">პრაქტიკა სამ რაუნდადაა. პირველი გავიარეთ: მე გავაკეთე ShopDemo, თქვენ უყურეთ.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>ერთად</div><div class="nl say">მეორე: ერთად ვაკეთებთ ახალ პროექტს — ბიბლიოთეკას. მე ერთ ნაბიჯს ვაკეთებ, თქვენც იმავეს — და ერთად გადავდივართ შემდეგზე.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>თქვენ</div><div class="nl say">მესამე: თქვენ დამოუკიდებლად — სკოლის პროექტი. მე ოთახში დავდივარ და ვეხმარები.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>წესი</div><div class="nl imp">შეცდომა ნორმალურია. სწორედ შეცდომებიდან სწავლობთ ყველაზე მეტს.</div></aside>
+</section>
+
+<!-- 29. WE DO -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">👥 ერთად ვაკეთებთ</div>
+  <h2>LibraryDemo — ბიბლიოთეკა</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1.1fr;align-items:start">
+    <div class="col">
+      <pre class="code sm"><span class="ttl">Book.cs</span><code><span class="ln"><span class="k">public</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">Book</span></span><span class="ln"><span class="p">{</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">Id</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="n">Title</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span><span class="p">.</span><span class="n">Empty</span><span class="p">;</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="n">Author</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">string</span><span class="p">.</span><span class="n">Empty</span><span class="p">;</span></span><span class="ln"><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">Year</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">get</span><span class="p">;</span><span class="w"> </span><span class="k">set</span><span class="p">;</span><span class="w"> </span><span class="p">}</span></span><span class="ln"><span class="p">}</span></span><span class="ln"><span class="w">      </span></span></code></pre>
+      <div class="callout" style="--a:var(--asp);font-size:19px">ბაზა: <b>LibraryDb</b> · ცხრილი: <b>Books</b></div>
+    </div>
+    <ul class="check" style="margin-top:0">
+      <li class="step">ახალი Console App: <b>LibraryDemo</b> (.NET 10)</li>
+      <li class="step">① 4 პაკეტი: EF Core · <code class="i">.SqlServer</code> · <code class="i">.Tools</code> · <code class="i">.Design</code></li>
+      <li class="step">② <code class="i">Book.cs</code> და <code class="i">DataContext.cs</code> + <code class="i">DbSet&lt;Book&gt; Books</code></li>
+      <li class="step">③ <code class="i">OnConfiguring</code> + სტრიქონი VS-დან (ბაზა: <b>LibraryDb</b>)</li>
+      <li class="step">④ <code class="i">Add-Migration InitialCreate</code> → <code class="i">Update-Database</code></li>
+      <li class="step">SSMS: ჩანს <b>LibraryDb → Books</b></li>
+      <li class="step">Program.cs: 2 წიგნი → <code class="i">SaveChanges</code> → დაბეჭდე</li>
+    </ul>
+  </div>
+  <aside class="notes" data-cues="7"><div class="nl t">⏱ 1:18 · 17 წთ · ~ ყოველ ნაბიჯზე: შენ აკეთებ ეკრანზე → ელოდები, სანამ ყველას ექნება → → ნიშანს უსვამ</div><div class="nl say">ახლა ერთად. ბიბლიოთეკის პროექტი: ცხრილი Books — Id, Title, Author, Year. ყოველ ნაბიჯს ერთად ვაკეთებთ და ნიშანს ვუსვამთ.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>პროექტი</div><div class="nl say">ყველამ შექმენით Console App LibraryDemo. ~ დაელოდე, სანამ ყველას ექნება.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>პაკეტები</div><div class="nl say">პირველი ნაბიჯი: პაკეტები. ? რომელი ოთხი? (EF Core, SqlServer, Tools, Design.)</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>DataContext</div><div class="nl say">მეორე: ჯერ Book კლასი, მერე DataContext DbSet-ით. ? DbSet-ის სახელი როგორი იქნება? (Books — ცხრილის სახელი.)</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>Connection</div><div class="nl say">მესამე: OnConfiguring და VS-დან დაკოპირებული სტრიქონი. ! ბაზის სახელი — LibraryDb.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>მიგრაცია</div><div class="nl say">მეოთხე: Add-Migration InitialCreate, მერე Update-Database. ~ აქ ყველაზე მეტი შეცდომა იქნება — შემდეგი ცხრილი ხშირ შეცდომებს აქვს, საჭიროებისამებრ აჩვენე.</div><div class="nl cue" data-c="6"><span class="ck">→ 6</span>SSMS</div><div class="nl say">შეამოწმეთ SSMS-ში: Refresh → LibraryDb → Books.</div><div class="nl cue" data-c="7"><span class="ck">→ 7</span>Program.cs</div><div class="nl say">ბოლოს Program.cs: დაამატეთ ორი წიგნი, SaveChanges, დაბეჭდეთ. ! ვისაც ჩანს — ხელი ასწიეთ 🙌</div></aside>
+</section>
+
+<!-- 30. YOU DO -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">🧑‍💻 თქვენ აკეთებთ · ~15 წთ</div>
+  <h2>SchoolDemo — დამოუკიდებლად</h2>
+  <div class="grid2" style="align-items:start">
+    <div class="card accent step left" style="--a:var(--mvc)">
+      <h3><span class="ico">📝</span>დავალება</h3>
+      <ul class="clean small">
+        <li>პროექტი <b>SchoolDemo</b>, ბაზა <b>SchoolDb</b></li>
+        <li>Entity <code class="i">Student</code>: Id, FirstName, LastName, Age</li>
+        <li>4 ნაბიჯი — <b>სლაიდების გარეშე</b> 💪</li>
+        <li>Program.cs: დაამატე <b>3 სტუდენტი</b> და დაბეჭდე</li>
+      </ul>
+      <p class="tiny mt" style="margin-top:14px">✓ მზადაა, როცა SSMS-ში ჩანს SchoolDb → Students და კონსოლი 3 სტუდენტს ბეჭდავს</p>
+    </div>
+    <div class="card accent step right" style="--a:var(--asp)">
+      <h3><span class="ico">⭐</span>ბონუსი — ვინც ადრე მორჩება</h3>
+      <ul class="clean small">
+        <li>დაამატე Entity <code class="i">Course</code>: Id, Title, Credits</li>
+        <li>DataContext-ში: <code class="i">DbSet&lt;Course&gt; Courses</code></li>
+        <li><code class="i">Add-Migration AddCourses</code> → <code class="i">Update-Database</code></li>
+        <li>SSMS: ახალი ცხრილი + <b>2 ჩანაწერი</b> __EFMigrationsHistory-ში</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout step mt" style="--a:var(--api)">გაჭედე? → შემდეგი სლაიდი: <b>ხშირი შეცდომები</b> და მათი გამოსწორება</div>
+  <aside class="notes" data-cues="3"><div class="nl t">⏱ 1:35 · 15 წთ · ~ ეს სლაიდი ეკრანზე დატოვე და ოთახში იარე</div><div class="nl say">ახლა თქვენ. სლაიდებს არ გიჩვენებთ — ოთხი ნაბიჯი თქვენით.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>დავალება</div><div class="nl say">SchoolDemo: სტუდენტი — სახელი, გვარი, ასაკი. ბოლოს სამი სტუდენტი ბაზაში და კონსოლში.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>ბონუსი</div><div class="nl say">ვინც ადრე მორჩება: მეორე ცხრილი Course და მეორე მიგრაცია. ! აქ ნახავთ, როგორ ცხოვრობს მიგრაციების ისტორია: __EFMigrationsHistory-ში ორი ჩანაწერი იქნება.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>შეცდომები</div><div class="nl say">თუ გაჭედეთ — შემდეგ სლაიდზე ყველაზე ხშირი შეცდომებია.</div><div class="nl dir">10 წუთის შემდეგ შეგიძლია შეცდომების სლაიდი გამოიტანო.</div></aside>
+</section>
+
+<!-- 31. COMMON ERRORS -->
+<section class="slide" data-section="5 · პრაქტიკა">
+  <div class="kicker">გაჭედე?</div>
+  <h2>ხშირი შეცდომები</h2>
+  <table class="t" style="font-size:18px">
+    <tr><th style="width:38%">შეცდომა</th><th style="width:31%">მიზეზი</th><th>გამოსწორება</th></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">The term 'Add-Migration' is not recognized</td><td>Tools / Design პაკეტი აკლია</td><td>დააყენე <code class="i">.Tools</code> + <code class="i">.Design</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">No DbContext was found in assembly</td><td>PMC-ში სხვა პროექტია არჩეული</td><td>შეცვალე <b>Default project</b></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">The certificate chain was issued by an authority that is not trusted</td><td>SSL სერტიფიკატი</td><td>სტრიქონში: <code class="i">Trust Server Certificate=True</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">A network-related or instance-specific error…</td><td>სერვერის სახელი არასწორია</td><td>ხელახლა დააკოპირე VS-დან · წინ <code class="i">@</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">The entity type 'Book' requires a primary key</td><td>Id property არ არის</td><td>დაამატე <code class="i">public int Id { get; set; }</code></td></tr>
+    <tr class="step fade"><td class="mono" style="font-size:16px">ბაზაში ცარიელია, შეცდომა არ არის</td><td>დაგავიწყდა SaveChanges</td><td><code class="i">db.SaveChanges();</code></td></tr>
+  </table>
+  <p class="tiny mt step fade" style="margin-top:16px">⚠ ყვითელი warning decimal-ზე („No store type was specified…“) — შეცდომა არ არის. მიგრაცია მაინც შეიქმნება, decimal(18,2)-ით.</p>
+  <aside class="notes" data-cues="7"><div class="nl t">⏱ საჭიროებისამებრ · ~ იყენებ „ერთად“ და „თქვენ“ რაუნდებში</div><div class="nl say">ყველაზე ხშირი შეცდომები — ერთად ან ცალ-ცალკე, საჭიროებისამებრ.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>Add-Migration not recognized</div><div class="nl say">Add-Migration-ს ვერ ცნობს — Tools (ან Design) პაკეტი არ დაგიყენებიათ.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>No DbContext</div><div class="nl say">No DbContext was found — PMC-ის ზემოთ Default project-ში სხვა პროექტია.</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>certificate</div><div class="nl say">სერტიფიკატის შეცდომა — სტრიქონში Trust Server Certificate უნდა იყოს True.</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>network-related error</div><div class="nl say">ბაზას ვერ პოულობს — სტრიქონი არასწორადაა დაკოპირებული, ან @ დაგავიწყდათ.</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>primary key</div><div class="nl say">requires a primary key — კლასს Id property არ აქვს, ან სახელი შეეშალა.</div><div class="nl cue" data-c="6"><span class="ck">→ 6</span>SaveChanges</div><div class="nl say">შეცდომა არ არის, მაგრამ ბაზა ცარიელია — SaveChanges დაგავიწყდათ.</div><div class="nl cue" data-c="7"><span class="ck">→ 7</span>decimal warning</div><div class="nl say">decimal-ზე ყვითელი გაფრთხილება — უბრალოდ გვეუბნება, რომ ზომას თვითონ ირჩევს. ეს შეცდომა არ არის.</div></aside>
+</section>
+
+<!-- 32. QUIZ -->
+<section class="slide" data-section="შეჯამება">
+  <div class="kicker">შევამოწმოთ</div>
+  <h2>5 კითხვა</h2>
+  <div class="qa"><span class="n">1</span><span class="q">რა არის ORM და რას ნიშნავს მისი სამი ასო?</span><span class="a step">თარჯიმანი ობიექტებსა და ცხრილებს შორის · Object · Relational · Mapping</span></div>
+  <div class="qa"><span class="n">2</span><span class="q">რა შეესაბამება ბაზაში კლასს, property-ს და ობიექტს?</span><span class="a step">ცხრილი · სვეტი · ჩანაწერი</span></div>
+  <div class="qa"><span class="n">3</span><span class="q">რომელი 4 პაკეტი დავაყენეთ?</span><span class="a step">EF Core — ძრავი · .SqlServer — SQL Server · .Tools — VS-ის ბრძანებები · .Design — მიგრაციის გენერაცია</span></div>
+  <div class="qa"><span class="n">4</span><span class="q">რით განსხვავდება Add-Migration და Update-Database?</span><span class="a step">Add-Migration წერს ნახაზს (ფაილს) · Update-Database ცვლის ბაზას</span></div>
+  <div class="qa"><span class="n">5</span><span class="q">Add() გამოვიძახეთ, ბაზა კი ცარიელია. რატომ?</span><span class="a step">SaveChanges() არ გამოგვიძახებია</span></div>
+  <aside class="notes" data-cues="5"><div class="nl t">⏱ 1:50 · 6 წთ · ~ კითხვა ხმამაღლა, დაელოდე პასუხს აუდიტორიიდან, მერე → პასუხის გამოსაჩენად</div><div class="nl q">❓ 1. რა არის ORM?</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>პასუხი 1</div><div class="nl q">❓ 2. რა შეესაბამება ბაზაში კლასს, property-ს, ობიექტს?</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>პასუხი 2</div><div class="nl q">❓ 3. რომელი ოთხი პაკეტი დავაყენეთ?</div><div class="nl cue" data-c="3"><span class="ck">→ 3</span>პასუხი 3</div><div class="nl q">❓ 4. Add-Migration vs Update-Database?</div><div class="nl cue" data-c="4"><span class="ck">→ 4</span>პასუხი 4</div><div class="nl q">❓ 5. რატომაა ბაზა ცარიელი?</div><div class="nl cue" data-c="5"><span class="ck">→ 5</span>პასუხი 5</div></aside>
+</section>
+
+<!-- 33. FINAL -->
+<section class="slide" data-section="შეჯამება">
+  <div class="vcenter" style="max-width:1000px">
+    <div class="kicker in" style="color:var(--core)">დღეს</div>
+    <h1 class="in" style="--d:.1s;font-size:66px">C# და ბაზა<br><span class="grad">ახლა ერთმანეთს იცნობენ</span> 🤝</h1>
+    <div class="grid2 mt2">
+      <div class="card accent step" style="--a:var(--mvc)"><h3><span class="ico">🏠</span>საშინაო</h3><p class="small">SchoolDemo-ს ბონუსი, თუ ვერ მოასწარით: <b>Course</b> + მეორე მიგრაცია + 2 ჩანაწერი</p></div>
+      <div class="card accent step" style="--a:var(--api)"><h3><span class="ico">⏭️</span>შემდეგ ლექციაზე</h3><p class="small">CRUD სრულად: წაკითხვა, განახლება, წაშლა · ცხრილებს შორის <b>კავშირები</b></p></div>
+    </div>
+  </div>
+  <div class="abs in" style="--d:.4s;right:110px;top:110px">
+    <svg viewBox="0 0 300 160" width="300" height="160">
+      <rect x="0" y="40" width="90" height="80" rx="16" fill="#f3effe" stroke="#6d28d9" stroke-width="3"/><text x="45" y="92" text-anchor="middle" class="tn b" font-size="30">C#</text>
+      <path id="br2" d="M90 80 C 130 20, 170 20, 210 80" stroke="#0d9488" stroke-width="4" fill="none"/>
+      <circle r="7" fill="#6d28d9"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#br2"/></animateMotion></circle>
+      <path d="M210 50 v60 a45 12 0 0 0 90 0 v-60" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><ellipse cx="255" cy="50" rx="45" ry="12" fill="#fef5e4" stroke="#d97706" stroke-width="3"/><text x="255" y="98" text-anchor="middle" font-size="26">🗄️</text>
+    </svg>
+  </div>
+  <aside class="notes" data-cues="2"><div class="nl t">⏱ 1:56 · 4 წთ</div><div class="nl say">დღეს ორი სამყარო დავაკავშირეთ: C# და ბაზა. ORM-ის იდეა გაიგეთ, EF Core-ით პროექტი ოთხ ნაბიჯში მოამზადეთ და თქვენი ხელით ბაზა შექმენით.</div><div class="nl cue" data-c="1"><span class="ck">→ 1</span>საშინაო</div><div class="nl say">საშინაო: ვინც ბონუსი ვერ მოასწრო — სახლში: Course და მეორე მიგრაცია.</div><div class="nl cue" data-c="2"><span class="ck">→ 2</span>შემდეგ</div><div class="nl say">შემდეგ ლექციაზე — CRUD სრულად და ცხრილებს შორის კავშირები: მაგალითად, ერთ კატეგორიას ბევრი პროდუქტი.</div><div class="nl say">მადლობა! კითხვები?</div></aside>
+</section>
+
+<div id="hud"><span class="sec"></span><span class="dots"></span><span class="num"></span></div><div id="bar"></div>
+</div></div>
+<div id="notes"></div><div id="overview"></div>
+<div id="help">→ შემდეგი · ← წინა · P ლექტორის ფანჯარა · N შენიშვნები · O ყველა სლაიდი · F სრული ეკრანი</div>
+<script>(() => {
+  const PRESENTER = new URLSearchParams(location.search).has('presenter');
+  let bc = null; try { bc = new BroadcastChannel('deck-' + document.title); } catch (e) {}
+  const deck = document.getElementById('deck');
+  const slides = [...deck.querySelectorAll('.slide')];
+  const hud = { sec: document.querySelector('#hud .sec'), num: document.querySelector('#hud .num'), dots: document.querySelector('#hud .dots') };
+  const bar = document.getElementById('bar');
+  const notes = document.getElementById('notes');
+  const ov = document.getElementById('overview');
+
+  // ----- build step groups per slide -----
+  const groups = slides.map(s => {
+    const els = [...s.querySelectorAll('.step, .trigger, .codestep')].filter(e => !e.closest('.notes'));
+    const g = [];
+    els.forEach(e => { if (e.hasAttribute('data-with') && g.length) g[g.length - 1].push(e); else g.push([e]); });
+    return g;
+  });
+  // sections
+  let curSec = '';
+  const sections = slides.map(s => (curSec = s.dataset.section ?? curSec));
+
+  // typing lengths
+  document.querySelectorAll('.typing').forEach(t => { t.style.setProperty('--n', t.textContent.length); if (!t.style.getPropertyValue('--t')) t.style.setProperty('--t', Math.max(.6, t.textContent.length * .045) + 's'); });
+
+  // svg draw lengths
+  document.querySelectorAll('.draw path,.draw line,.draw polyline,path.draw,line.draw,.autodraw path,path.autodraw').forEach(p => {
+    try { const L = Math.ceil(p.getTotalLength()) + 2; p.style.setProperty('--len', L); } catch (e) {}
+  });
+
+  let i = 0, k = 0;
+  const parseHash = () => { const m = location.hash.match(/#\/?(\d+)(?:\.(\d+))?/); if (m) { i = Math.min(slides.length - 1, Math.max(0, +m[1] - 1)); k = Math.min(groups[i].length, +(m[2] || 0)); } };
+  parseHash();
+
+  function smil(root, filter) {
+    root.querySelectorAll('animate,animateMotion,animateTransform,set').forEach(a => {
+      if (filter(a)) { try { a.beginElement(); } catch (e) {} }
+    });
+  }
+  function ranges(spec) {
+    const out = new Set();
+    String(spec).split(',').forEach(p => { const [a, b] = p.split('-').map(Number); for (let x = a; x <= (b || a); x++) out.add(x); });
+    return out;
+  }
+
+  let prevI = -1, prevK = -1;
+  function render(forward) {
+    slides.forEach((s, x) => { s.classList.toggle('active', x === i); s.classList.toggle('past', x < i); });
+    const s = slides[i];
+    groups[i].forEach((g, x) => g.forEach(e => e.classList.toggle('shown', x < k)));
+    // data-hide triggers: hide target element(s) once the trigger is shown
+    s.querySelectorAll('[data-hide]').forEach(t => {
+      s.querySelectorAll(t.dataset.hide).forEach(el => el.classList.toggle('gone', t.classList.contains('shown')));
+    });
+    // code highlights
+    s.querySelectorAll('pre.code[id]').forEach(pre => {
+      const steps = [...s.querySelectorAll(`.codestep[data-for="${pre.id}"]`)].filter(c => c.classList.contains('shown'));
+      const last = steps[steps.length - 1];
+      const lines = [...pre.querySelectorAll('.ln')];
+      if (!last || last.dataset.lines === 'all') { lines.forEach(l => l.classList.remove('hl', 'dim')); return; }
+      const set = ranges(last.dataset.lines);
+      lines.forEach((l, n) => { const on = set.has(n + 1); l.classList.toggle('hl', on); l.classList.toggle('dim', !on); });
+    });
+    // animations
+    if (i !== prevI) {
+      smil(s, a => a.hasAttribute('data-auto'));
+    }
+    if (i === prevI && k > prevK) {
+      for (let x = prevK; x < k; x++) groups[i][x].forEach(e => smil(e, a => !a.hasAttribute('data-auto')));
+    } else if (i !== prevI && k > 0) {
+      for (let x = 0; x < k; x++) groups[i][x].forEach(e => smil(e, a => !a.hasAttribute('data-auto')));
+    }
+    prevI = i; prevK = k;
+    // hud
+    hud.sec.textContent = sections[i] || '';
+    hud.num.textContent = `${i + 1} / ${slides.length}`;
+    const n = groups[i].length;
+    hud.dots.innerHTML = n ? Array.from({ length: n }, (_, x) => x < k ? '<b>●</b>' : '○').join('') : '';
+    bar.style.width = ((i + (n ? k / n : 1)) / slides.length * 100) + '%';
+    const nt = s.querySelector('.notes');
+    notes.innerHTML = `<h6>შენიშვნები ლექტორისთვის · სლაიდი ${i + 1}</h6>` + (nt ? nt.innerHTML : '<span class="muted">—</span>');
+    notes.querySelectorAll('.cue').forEach(c => { const n = +c.dataset.c; c.classList.toggle('done', n <= k); c.classList.toggle('next', n === k + 1); });
+    const nx = notes.querySelector('.cue.next'); if (nx && notes.classList.contains('open')) nx.scrollIntoView({ block: 'nearest' });
+    history.replaceState(null, '', `#/${i + 1}${k ? '.' + k : ''}`);
+    try { bc && !PRESENTER && bc.postMessage({ t: 'state', i, k }); } catch (e) {}
+    if (PRESENTER) renderPresenter();
+    [...ov.children].forEach((b, x) => b.classList.toggle('cur', x === i));
+  }
+
+  function next() { if (k < groups[i].length) k++; else if (i < slides.length - 1) { i++; k = 0; } render(true); }
+  function prev() { if (k > 0) { k--; prevK = k; } else if (i > 0) { i--; k = groups[i].length; } render(false); }
+  function go(x, all) { i = Math.max(0, Math.min(slides.length - 1, x)); k = all ? groups[i].length : 0; render(true); }
+
+  // overview
+  slides.forEach((s, x) => {
+    const b = document.createElement('button');
+    const t = s.querySelector('h1,h2,h3')?.textContent.trim() || s.dataset.title || 'სლაიდი';
+    b.innerHTML = `<small>${x + 1} · ${sections[x] || ''}</small>${t}`;
+    b.onclick = e => { e.stopPropagation(); ov.classList.remove('open'); go(x); };
+    ov.appendChild(b);
+  });
+
+  const t0 = Date.now();
+  function renderPresenter() {
+    const P = document.getElementById('presenter'); if (!P) return;
+    const sl = slides[i], nt = sl.querySelector('.notes');
+    const title = t => (t.querySelector('h1,h2')?.innerText || t.dataset.section || '').replace(/\n/g, ' ');
+    P.querySelector('.p-title').textContent = `${i + 1} / ${slides.length} · ${title(sl)}`;
+    P.querySelector('.p-next').textContent = i < slides.length - 1 ? 'შემდეგი სლაიდი: ' + title(slides[i + 1]) : 'ბოლო სლაიდი';
+    P.querySelector('.p-steps').textContent = groups[i].length ? `ნაბიჯი ${k} / ${groups[i].length}` : '';
+    const body = P.querySelector('.p-notes'); body.innerHTML = nt ? nt.innerHTML : '';
+    body.querySelectorAll('.cue').forEach(c => { const n = +c.dataset.c; c.classList.toggle('done', n <= k); c.classList.toggle('next', n === k + 1); });
+    (body.querySelector('.cue.next') || body.firstElementChild)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  if (bc) bc.onmessage = ({ data }) => {
+    if (PRESENTER && data.t === 'state') { i = data.i; k = data.k; render(true); }
+    if (!PRESENTER && data.t === 'cmd') { ({ next, prev, go: () => go(data.n) })[data.c](); }
+    if (!PRESENTER && data.t === 'hello') bc.postMessage({ t: 'state', i, k });
+  };
+  if (PRESENTER) {
+    document.body.classList.add('presenter');
+    const P = document.createElement('div'); P.id = 'presenter';
+    P.innerHTML = '<div class="p-head"><span class="p-title"></span><span class="p-steps"></span><span class="p-clock"></span></div><div class="p-notes"></div><div class="p-foot"><span class="p-next"></span><span class="p-help">→ / Space შემდეგი · ← წინა · ეს ფანჯარა მართავს პროექტორზე გახსნილ სლაიდებს</span></div>';
+    document.body.appendChild(P);
+    setInterval(() => { const m = Math.floor((Date.now() - t0) / 60000); P.querySelector('.p-clock').textContent = `⏱ ${String(Math.floor(m / 60)).padStart(1, '0')}:${String(m % 60).padStart(2, '0')}`; }, 1000);
+    try { bc.postMessage({ t: 'hello' }); } catch (e) {}
+    document.addEventListener('keydown', e => {
+      const fwd = ['ArrowRight', 'PageDown', ' ', 'Enter', 'ArrowDown'], back = ['ArrowLeft', 'PageUp', 'Backspace', 'ArrowUp'];
+      if (fwd.includes(e.key)) { e.preventDefault(); bc.postMessage({ t: 'cmd', c: 'next' }); }
+      else if (back.includes(e.key)) { e.preventDefault(); bc.postMessage({ t: 'cmd', c: 'prev' }); }
+    });
+  }
+  document.addEventListener('keydown', e => {
+    if (PRESENTER) return;
+    if (e.key === 'p' || e.key === 'P') { window.open(location.pathname + '?presenter' + location.hash, 'presenter', 'width=1100,height=800'); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const key = e.key;
+    if (['ArrowRight', 'PageDown', ' ', 'Enter', 'ArrowDown'].includes(key)) { e.preventDefault(); e.shiftKey ? go(i + 1) : next(); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace', 'ArrowUp'].includes(key)) { e.preventDefault(); e.shiftKey ? go(i - 1) : prev(); }
+    else if (key === 'Home') go(0);
+    else if (key === 'End') go(slides.length - 1, true);
+    else if (key === 'n' || key === 'N') notes.classList.toggle('open');
+    else if (key === 'o' || key === 'O' || key === 'Escape') ov.classList.toggle('open', key === 'Escape' ? false : !ov.classList.contains('open'));
+    else if (key === 'f' || key === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
+    else if (key === 'a' || key === 'A') { k = groups[i].length; render(true); }
+  });
+  document.getElementById('stage').addEventListener('click', e => {
+    if (PRESENTER) return;
+    if (e.target.closest('a,button,#notes')) return;
+    (e.clientX < innerWidth * 0.3) ? prev() : next();
+  });
+  let tx = null;
+  addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive: true });
+  addEventListener('touchend', e => { if (tx == null) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) (d < 0 ? next() : prev()); tx = null; });
+  addEventListener('hashchange', () => { const oi = i, ok = k; parseHash(); if (oi !== i || ok !== k) render(true); });
+
+  function fit() {
+    // 16:9 on wide screens; grow canvas height up to 16:10 so MacBook-style screens have no bars
+    const H = Math.max(900, Math.min(1000, Math.round(1600 * innerHeight / innerWidth)));
+    deck.style.setProperty('--h', H + 'px');
+    deck.style.setProperty('--s', Math.min(innerWidth / 1600, innerHeight / H));
+  }
+  setTimeout(() => document.getElementById('help')?.classList.add('hide'), 6000);
+  addEventListener('resize', fit); fit();
+  render(true);
+})();
+</script>
+</body></html>
