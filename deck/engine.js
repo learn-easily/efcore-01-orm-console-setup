@@ -119,23 +119,24 @@
   if (PRESENTER) {
     document.body.classList.add('presenter');
     const P = document.createElement('div'); P.id = 'presenter';
-    P.innerHTML = '<div class="p-head"><span class="p-title"></span><span class="p-steps"></span><span class="p-clock"></span></div><div class="p-notes"></div><div class="p-foot"><span class="p-next"></span><span class="p-help">→ / Space შემდეგი · ← წინა · ეს ფანჯარა მართავს პროექტორზე გახსნილ სლაიდებს</span></div>';
+    P.innerHTML = '<div class="p-head"><span class="p-title"></span><span class="p-steps"></span><span class="p-clock"></span></div><div class="p-notes"></div><div class="p-foot"><span class="p-next"></span><span class="p-help">→ შემდეგი · ← წინა · ეს ფანჯარა მართავს პროექტორზე გახსნილ სლაიდებს</span></div>';
     document.body.appendChild(P);
     setInterval(() => { const m = Math.floor((Date.now() - t0) / 60000); P.querySelector('.p-clock').textContent = `⏱ ${String(Math.floor(m / 60)).padStart(1, '0')}:${String(m % 60).padStart(2, '0')}`; }, 1000);
     try { bc.postMessage({ t: 'hello' }); } catch (e) {}
     document.addEventListener('keydown', e => {
-      const fwd = ['ArrowRight', 'PageDown', ' ', 'Enter', 'ArrowDown'], back = ['ArrowLeft', 'PageUp', 'Backspace', 'ArrowUp'];
+      const fwd = ['ArrowRight'], back = ['ArrowLeft'];
       if (fwd.includes(e.key)) { e.preventDefault(); bc.postMessage({ t: 'cmd', c: 'next' }); }
       else if (back.includes(e.key)) { e.preventDefault(); bc.postMessage({ t: 'cmd', c: 'prev' }); }
     });
   }
   document.addEventListener('keydown', e => {
     if (PRESENTER) return;
-    if (e.key === 'p' || e.key === 'P') { window.open(location.pathname + '?presenter' + location.hash, 'presenter', 'width=1100,height=800'); return; }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); window.open(location.pathname + '?presenter' + location.hash, 'presenter', 'width=1100,height=800'); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const key = e.key;
-    if (['ArrowRight', 'PageDown', ' ', 'Enter', 'ArrowDown'].includes(key)) { e.preventDefault(); e.shiftKey ? go(i + 1) : next(); }
-    else if (['ArrowLeft', 'PageUp', 'Backspace', 'ArrowUp'].includes(key)) { e.preventDefault(); e.shiftKey ? go(i - 1) : prev(); }
+    if (key === 'ArrowRight') { e.preventDefault(); e.shiftKey ? go(i + 1) : next(); }
+    else if (key === 'ArrowLeft') { e.preventDefault(); e.shiftKey ? go(i - 1) : prev(); }
+    else if ([' ', 'Enter', 'PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'Backspace'].includes(key)) { e.preventDefault(); }
     else if (key === 'Home') go(0);
     else if (key === 'End') go(slides.length - 1, true);
     else if (key === 'n' || key === 'N') notes.classList.toggle('open');
@@ -143,14 +144,6 @@
     else if (key === 'f' || key === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
     else if (key === 'a' || key === 'A') { k = groups[i].length; render(true); }
   });
-  document.getElementById('stage').addEventListener('click', e => {
-    if (PRESENTER) return;
-    if (e.target.closest('a,button,#notes')) return;
-    (e.clientX < innerWidth * 0.3) ? prev() : next();
-  });
-  let tx = null;
-  addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive: true });
-  addEventListener('touchend', e => { if (tx == null) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) (d < 0 ? next() : prev()); tx = null; });
   addEventListener('hashchange', () => { const oi = i, ok = k; parseHash(); if (oi !== i || ok !== k) render(true); });
 
   function fit() {

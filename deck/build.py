@@ -79,7 +79,7 @@ def build(src, out, title, light=False):
 <div id="hud"><span class="sec"></span><span class="dots"></span><span class="num"></span></div><div id="bar"></div>
 </div></div>
 <div id="notes"></div><div id="overview"></div>
-<div id="help">→ შემდეგი · ← წინა · P ლექტორის ფანჯარა · N შენიშვნები · O ყველა სლაიდი · F სრული ეკრანი</div>
+<div id="help">← → · F</div>
 <script>{JS}</script>
 </body></html>'''
     (ROOT.parent / 'out').mkdir(exist_ok=True)
